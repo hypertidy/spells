@@ -1,0 +1,781 @@
+# spells: brief
+
+Draft 2026-11-17. Planning only, no code yet. This is the design brief
+for hypertidy/spells. It sits at the repo root, and `.Rbuildignore` keeps
+it out of package builds.
+
+A **spell** is a persistent excursion of a series beyond a threshold set
+relative to a baseline. A marine heatwave (Hobday et al. 2016) is one
+preset. So is a cold spell, a sea ice season (Massom et al. 2013), a
+phytoplankton bloom (Siegel et al. 2002), a high sea level spell, a dry
+spell, or a run of high glucose. The plan: a domain-neutral R engine, with
+the products kept where their data already lives, in the trend.* family.
+
+
+## What exists already
+
+The engine is already half-written. It's spread over the family:
+
+- **trend.sst `R/mhw.R`**: a heatwaveR 0.5.5-exact reimplementation of
+  `ts2clm()` + `detect_event()`, vectorised over a time x pixel matrix
+  (one shared set of day-of-year window indices), with parity checked in
+  `validate/mhw_parity.R`. Around it is a regional MUR pipeline: fetch
+  native windows, transpose them to a series-layout Zarr (50 x 50 x ntime),
+  run per-pixel events, write additive daily area-in-MHW sums by category
+  (`pixel_daily.csv`), and feed `docs/heatwaves.html`. The site already
+  compares *spells of the box mean* with *pixel spells*. heatwaveR's
+  quirks are documented: NA is set to seas, the leading gap isn't joined,
+  and a trailing gap of 2 days or fewer is joined at the end of the series.
+- **trend.ice `R/ice_season.R`**: Massom 2013. Advance is the start of
+  the first run of 5 or more days at or above 15%. Retreat is the day
+  after the last day at or above the threshold. Day count is the number
+  of exceedance days. Observation gaps of 5 days or fewer are
+  interpolated, a season with a longer gap isn't computed, and the ice
+  year starts on 15 Feb. That's a spell calculation with a fixed
+  threshold, a shifted year and a missing-data policy, so it's a second
+  consumer of the same engine.
+- **trend.chl**: 5-day composites in log10 space, with heavy missingness
+  (cloud, polar night). Bloom phenology hasn't been done yet, but it's a
+  threshold plus persistence (median + 5% per pixel-year). trend.ice's
+  chl-vs-days-since-retreat analysis is already "time since a spell ended".
+- **trend.sla**: daily CMEMS DUACS from ARCO Zarr. grist reads the map
+  layout (`timeChunked.zarr`). The series layout (`geoChunked.zarr`) is
+  published too (see hypertidy/cmemsarco), so SLA spells need no
+  rechunk. A high sea level spell is the obvious product (coastal
+  relevance, Kelvin wave arrival).
+- **grist**: date-at-a-time mergeable sufficient statistics on S2
+  level 5. Its catalog contract (`date`, `dsn`, `band` or mdim) is the
+  integration point.
+- **ghrsst-cogger**: SQS + Lambda + Docker + Terraform, producing MUR COGs
+  and a STAC GeoParquet index on source.coop. This is the AWS pattern we
+  have already proven.
+- **Infrastructure**: Setonix scrontab (`trend/tools/scron`), Acacia
+  `aad-derived/` as the publication bucket, Gadi for BRAN (trend.ice
+  `gadi/`), and Nectar for the ice season run and raadtools access.
+
+That makes three consumers already (sst, ice, chl). grist was extracted
+for the same reason, so extracting now is justified.
+
+
+## State of the field (late 2026)
+
+There's a fuller summary in `trend.ice/reports/spells-summary.md`. Full
+citations are in `trend.ice/research_notes/Marine heatwave presentation
+and regions/`. What it means for the engine:
+
+- **heatwaveR 1.0.0 (2026-10-19) is the final release.** heatwave3
+  (v1.5.0) succeeds it:
+  - multi-threaded C++ for R and Python, reading NetCDF and Zarr;
+  - daily categories, 4D depth-resolved detection and blob detection;
+  - regional runs from a global climatology.
+
+  The Marine Heatwave Tracker moved to heatwave3 in mid-2026. Two
+  consequences: parity has to name a version, and spells has to justify
+  itself next to heatwave3 (see "Where it lives").
+- **Baselines have a protocol now, though not a single answer** (Smith
+  et al. 2025). There are five types: fixed, detrended, shifting,
+  adaptation-adjusted and periodically updated. Always state the type
+  and period. Report detrended or shifting results as best and worst
+  cases. A full-record MUR baseline (2003-2025) is acceptable if it's
+  labelled.
+- **The standard area metrics** are:
+  - daily % of area by category;
+  - the annual % of area that reached at least moderate, or at least
+    strong;
+  - a highest-category map;
+  - strong-or-higher days;
+  - area-integrated cumulative intensity (degrees C x days x km^2).
+
+  All of them are additive over pixels (see "Two scales").
+- **Events are tracked as objects** (Ocetrac, heatwave3 blobs, NOAA's
+  named NEP25A/NEP26A). The region becomes a viewport, not the
+  definition of the event.
+- **Products disagree by up to about 2x** on heatwave metrics
+  (Chevillard 2026): smoother series give fewer, longer, weaker events,
+  and maximum intensity is the most robust metric. That supports never
+  pooling, using several products, and the estimator guardrails below.
+- **Ice**: above about 50% ice concentration, SST collapses toward
+  -1.8 degrees C (Zhang et al. 2025). Practice is to mask ice
+  concentration of 0.15 or more per step, and drop pixels with mean
+  concentration above 0.2. So spells needs an eligibility mask (below),
+  and polar SST spells depend on ice data. That's the first input that
+  crosses members.
+- **In scope as presets or products**: cold spells, subsurface
+  heatwaves (often strongest at 50-200 m), compound events, and Arctic
+  heatwaves tied to ice loss.
+
+
+## Where it lives: recommendation
+
+| option | for | against |
+|---|---|---|
+| inside **trend** (AAD) | no new repo; it's the family home | trend is presentation and ops (kit, scron) with no R; an engine there is buried and not reusable |
+| inside **grist** | already a shared engine | different access pattern: spells need contiguous time per series, keep state and take two passes (baseline, then detect), while grist is date-at-a-time and mergeable; spells don't need grist's dependencies (s2, vapour, arrow) |
+| new **trend.mhw** deployment | gives "heatwaves" its own site | duplicates trend.sst's catalogs, baselines and regions; MHW is SST product knowledge |
+| new **spells** package, products in members | the grist pattern again: an invariant engine plus host repos that own product knowledge; useful outside the family | one more repo, but an engine, not a deployment |
+| just use **heatwave3** | fast, maintained, gridded, already the community engine for MHWs | specific to MHW and cold spells; reads files itself; nothing for ice seasons, blooms, non-daily steps, censoring, estimators, mergeable indicator sums or streaming state |
+
+**Why spells when heatwave3 exists.** If heatwaves were the only goal,
+the answer would be heatwave3. spells is justified by the other
+consumers:
+
+- the ice season, blooms and sea level, plus 5-day steps;
+- composition with sums;
+- the estimator contract;
+- clean, censored semantics.
+
+For the Hobday presets, heatwave3 is an oracle, and possibly a backend
+behind the same `spell_def`. The survey must confirm what heatwave3
+actually exposes, because the summary describes it from its docs.
+
+**Recommended:**
+
+1. **`spells`**, an R package at `~/Git/spells`. Decided: hypertidy,
+   alongside grist. It's I/O-free computation. The name is free on CRAN
+   and GitHub (hypertidy, mdsumner) as of 2026-11-17. Avoid
+   "excursions": CRAN has it already (excursion sets for latent Gaussian
+   models).
+2. **No new deployment repo.** MHW and cold spells stay in trend.sst, the
+   ice season in trend.ice, blooms in trend.chl, and high or low sea
+   level spells in trend.sla. Each gets a `spells/` (or `data-raw/spell_*`)
+   recipe set.
+3. **The family layer goes in AustralianAntarcticDivision/trend**: a
+   Spells kit module (shared page and data contract, synced by
+   `kit-sync`) and a landing-page card. **"Heatwaves" stays the product
+   name** on trend.sst and the card, because that's where the momentum
+   is. The engine doesn't need the name. The kit's data contract carries:
+   - the de facto category palettes, from heatwaveR: MHW `#ffc866`
+     `#ff6900` `#9e0000` `#2d0000`, MCS `#C7ECF2` `#85B7CC` `#4A6A94`
+     `#111433`;
+   - labels generated from the def hash: product, baseline type and
+     period, and the engine and parity version, on every title, as the
+     Tracker does.
+4. **A region registry, proposed for the family home.** Every member
+   uses the same regions, so this meets the "second member needs it" rule
+   from day one. Each region is a polygon, its cell sets per S2 level,
+   and a citation of the closest published box. Candidate sets:
+   - IPCC AR6 ocean regions, plus the Mediterranean and Caribbean;
+   - Large Marine Ecosystems;
+   - the Nino boxes;
+   - Kajtar 2021's Australian boxes;
+   - Coral Reef Watch virtual stations;
+   - MEASO sectors and CCAMLR divisions;
+   - trend.ice's sectors.
+
+
+## The model: vocabulary as objects
+
+```
+baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summaries
+```
+
+- **time axis**: an index plus a *slot* (the climatological position:
+  day of year on a 366 calendar, ice-year day, 5-day composite number)
+  and a *season year* (calendar year, ice year from 15 Feb, or an austral
+  bloom year). Don't assume daily data: chl is 5-day.
+- **baseline**: the expected value per slot. The options are a
+  climatology (windowed and smoothed, heatwaveR style), a fixed value, a
+  per-season statistic (bloom: the median of that year), a trend-aware or
+  shifting baseline, or a covariate model.
+  - The baseline **type** (Smith et al. 2025: fixed, detrended, shifting,
+    adaptation-adjusted, periodically updated) and **reference period**
+    are part of the def. Every label is generated from them, never typed
+    by hand.
+  - For comparisons, use a fixed baseline on an earlier work's period,
+    with detrended or shifting results as best and worst cases.
+  - The choice matters most for long records and for projections (Amaya
+    et al. 2023, Nature).
+- **threshold**: the level relative to the baseline: a percentile (in the
+  same window), baseline + k, baseline x (1 + p), an absolute value, or a
+  multiple of the standard deviation.
+- **exceedance**: a logical per step, with a direction (high or low) and
+  a comparison (`>` vs `>=`: trend.ice found old code mixing the two).
+- **excursion**: a maximal contiguous run of exceedances.
+- **spell**: an excursion that passes the persistence rules:
+  minimum duration (an *opening*), maximum gap joined (a *closing*), the
+  **order** of the two, and optionally hysteresis (separate start and end
+  thresholds).
+- **missing data** is a separate policy from sub-threshold gaps, because
+  an observation gap isn't a sub-threshold gap. The options are:
+  interpolate up to n steps, then count as baseline (heatwaveR); break
+  the spell; or refuse the season (trend.ice).
+- **censoring**: a spell that touches the start or end of the series,
+  or a missing run it can't cross, is flagged as left- or right-censored
+  instead of being silently cut short. These are the same flags as
+  trend.ice's `ice_at_start` and `ice_at_end`.
+- **eligibility**: a mask of steps where the variable means nothing,
+  such as SST under ice. Ineligible isn't missing:
+  - it's never interpolated across;
+  - it breaks and censors a spell;
+  - it's counted separately from data gaps.
+
+  A whole series can be ineligible (e.g. mean ice concentration above
+  0.2). The mask is an input from another source: MUR's
+  `sea_ice_fraction`, or trend.ice.
+- **metrics** per spell: start, end, peak, duration, intensity (max,
+  mean, cumulative, variance), onset and decline rates, the highest
+  category reached, and the steps interpolated.
+  - Categories are Hobday 2018 multiples of threshold minus baseline,
+    computed per step. The rule is part of the def: floor of the
+    multiple, with event days below 1x counted as I. That's what
+    trend.sst does now.
+- **summaries** per season year: spell count, days in spell, days at or
+  above each category, first start, last end (ice advance and retreat
+  are summaries, not new algorithms), maximum intensity and the highest
+  category.
+
+**Default semantics are clean rules. heatwaveR matching is an option**
+(`parity = "heatwaveR-<version>"`, below). Clean means:
+
+- gaps are joined wherever there's a spell on both sides, and nowhere
+  else;
+- spells at the edges are censored, not gap-joined;
+- the baseline isn't rounded;
+- missing steps: a run of n or fewer missing steps is interpolated
+  linearly. This happens in the analysis space (log10 for chl, following
+  grist's transform), and the threshold is then tested on the filled
+  values. A longer run breaks the spell, and the spells on either side
+  are censored at the break. n counts steps, not days (5-day composites
+  count as one step each). Each preset sets its own n:
+  - `massom2013` uses 5, as trend.ice does now;
+  - `hobday2016` uses 3, as trend.sst's masked sensitivity run does.
+
+  Every spell records how many of its steps were interpolated, so users
+  can filter on it. Missing steps at the very start or end can't be
+  interpolated (there's nothing to bracket them), so they censor the
+  spell instead.
+
+**Parity names a version**: `parity = "heatwaveR-0.5.5"`,
+`"heatwaveR-1.0.0"` or `"heatwave3"`.
+
+`heatwaveR-0.5.5` is what trend.sst matches now (from `R/mhw.R`):
+- NA is set to seas after `maxPadLength` interpolation;
+- the leading gap isn't joined;
+- a trailing gap of `max_gap` or less is joined at the end of the
+  series;
+- seas and thresh are rounded to 4 decimals;
+- Feb 29 in non-leap years is filled with the rounded mean of 28 Feb and
+  1 Mar.
+
+1.0.0 fixed `joinAcrossGaps`, and the summary also reports a change to
+the moderate-category comparison (`>` to `>=`). Its version label
+(0.5.3.x) is older than 0.5.5, so check whether 0.5.5 already has it.
+Every quirk is a named, documented switch, tested against the version it
+names.
+
+API sketch (not a commitment):
+
+```r
+def <- spell_def(baseline = clim_window(11, smooth = 31), threshold = pctile(90),
+                 direction = "high", min_duration = 5, max_gap = 2,
+                 missing = interp(3, then = "break"))      # clean by default
+hobday2016()                       # presets return a spell_def
+hobday2016(parity = "heatwaveR-0.5.5")   # the same definition, that version's quirks
+hobday2016(baseline = detrended())       # baseline type and period go into every label
+b  <- spell_baseline(x, time, def) # x: time x series matrix; vector = 1 column
+m  <- spell_mask(x, time, b, def)  # logical / category matrix, same shape as x
+ev <- spell_events(x, time, b, m)  # one row per (series, spell)
+s  <- spell_summary(ev, by = season_year(time, start = "02-15"))
+st <- spell_state(...); spell_step(st, x_today, b, def)   # streaming
+```
+
+
+## Design principles
+
+- **The core is I/O-free and matrix-first**: a time x series matrix in,
+  and arrays or tables out. A series can be a pixel, an S2 cell, a
+  station or a patient, and the shape is the same. Data frames are a
+  convenience layer. I/O adapters (Zarr, COG, grist sums) live in the
+  deployments.
+- **Definitions are data**: a `spell_def` serialises to JSON and is
+  hashed, and the hash is stamped into every output (Parquet metadata,
+  COG tags). That's how grist stamps transforms.
+- **Every preset gets an oracle**:
+  - `hobday2016` / `hobday2018`: parity with each named version (reuse
+    `validate/mhw_parity.R`). Published events are reproduced on OISST
+    pixels in the exact box, not S2 cells selected by centre:
+    - Oliver 2017 SEAus (147-155 E, 37-45 S): 251 days, 2.9 C;
+    - Kajtar 2021 (147-157 E, 37-46 S, 1983-2012): 318 days, 2.8 C;
+    - WA 2010/11, from Pearce & Feng 2013.
+
+    trend.sst's 318 days matches Kajtar, not Oliver as its method page
+    says.
+  - `schlegel2021` (cold spells): parity, as for Hobday.
+  - `massom2013`: trend.ice's current COGs, exactly.
+  - `siegel2002`: published bloom timing.
+  - ETCCDI WSDI/CSDI: climdex.pcic.
+- **Batch and streaming agree**: the online `state + step` form must
+  reproduce the batch mask except for a declared **provisional tail**
+  (about `max(min_duration, max_gap + 1)` steps), the same idea as
+  trend.sst's daily run recomputing GHRSST's provisional dates.
+- **The baseline is the expensive, reusable artefact**: build and publish
+  it once per (source, period, def), then read it many times.
+- **Family rules carry over**:
+  - Never pool sources: a baseline belongs to one source, and sources
+    are compared at the event level.
+  - Raw stores in; flagging happens at analysis time.
+  - Recipes live in git, artefacts in the bucket, and scratch is
+    disposable.
+- **Performance**: vectorise over columns in R first (the `mhw.R`
+  pattern). Write a C or Rust kernel for run assembly only if profiling
+  asks for one.
+
+
+## Two scales, kept apart
+
+Spells are nonlinear. Sums are mergeable but spells aren't, so the spell
+of a mean isn't the mean of the spells.
+
+- **Spells of cell means** are cheap and come from published grist sums
+  alone (`series_stats()`, then spells). They run anywhere, including
+  GitHub Actions.
+- **The cell share of pixel spells** is expensive. Per-pixel spells give
+  daily category rasters, and those become grist sums of weight in a
+  spell by category: a mergeable area fraction for any region. That
+  composes through the catalog contract (spells writes per-date COGs plus
+  a catalog, grist reads it), the same as `pixel_daily.csv` but global
+  and on S2 cells.
+
+The sites must always say which of the two they're showing.
+
+**Every standard area metric is an additive sum of per-pixel
+indicators**, so the pixel tier can be stored as sums too. Per (cell,
+step), or (cell, season year):
+
+| metric | per-pixel indicator, summed as w x indicator |
+|---|---|
+| daily % of area by category | in a spell at category k today |
+| annual % of area that reached at least category k | reached k at some point this year |
+| highest-category map / area fractions | one indicator per highest category (a histogram) |
+| days at or above category k | count of days at k or more |
+| area-integrated cumulative intensity | sum over spell days of (x - baseline), times area |
+
+**So regions become queries.** Per-pixel spells depend only on each
+pixel's own baseline, never on the region. Compute them once per tile,
+accumulate the indicators to S2 cells, and every published box or
+framework in the registry is a cell selection after the fact. Most of
+the region-boundary debate goes away, for the pixel tier at least.
+
+- The box-mean tier still depends on the box, unavoidably, but it's
+  cheap.
+- Level 5 (about 290 km) is too coarse for coastal boxes such as the
+  Leeuwin (112-115 E). The indicator sums want level 8 to 10 (about 36
+  to 9 km). grist's level is a deployment choice.
+- Deep-dive boxes become compute tiles feeding one global indicator
+  store. Their order is a schedule: Nino-1+2 first, given the El Nino
+  under way, then NW Australia 2024/25 and so on.
+
+**Events as objects** are connected components of the space-time spell
+mask. Use the same neighbour table as the kernel estimator (below).
+Unlike per-pixel spells, components cross tile boundaries, so they need
+halos or a union-find merge across edges. That's a later pass over the
+published daily category COGs, not part of the core.
+
+
+## Estimation: beyond pixel series
+
+The missing-data rule is the narrowest case of an *estimator*, meaning
+whatever supplies the value used for a (series, step). Interpolating
+n steps or fewer is a 1D time kernel on one pixel's series. The general
+form uses every observation in a space-time window of interest, weighted
+by distance:
+
+    x_hat(c0, t0) = sum K(c, t) * sumwx(c, t) / sum K(c, t) * sumw(c, t)
+
+The kernel weight is constant per (bin, step), so this is exact
+arithmetic on stored sums, with no return to the pixels. The bin size
+sets the kernel's granularity, so this is for fine bins (L3bin ISIN
+4.6 km, OC-CCI 4 km, or a finer S2 level), not S2 level 5. Ocean colour
+is the first case.
+
+- **Kernels are applied at analysis time, never in the store** (the same
+  rule as flags). The kernel spec is part of the spell def and its hash.
+- **Weight** = area x quality (OC-CCI `rmsd` as inverse variance,
+  L3bin's per-bin weights) x K_space x K_time.
+- **Every estimate carries its support**: effective n (Kish:
+  (sum w)^2 / sum w^2) and the distance to the nearest observation in
+  space and in time. Below a declared minimum, the step is missing, and
+  the agreed rule applies (break and censor).
+  - Kish needs sum w^2 per bin, a fifth statistic (`sumww`) for the
+    grist schema. Add it while each record is still one rerun away;
+    `sumw^2 / n` stands in where weights within a bin are near-constant.
+- **The baseline and detection use the same estimator.** If the
+  threshold comes from raw values and detection runs on smoothed values,
+  the smoothed series has less variance and exceedances are undercounted.
+- **The costs are stated, not hidden**:
+  - smoothing lowers peak intensity and can lengthen spells;
+  - neighbouring series share data, which inflates the apparent
+    spatial extent of events;
+  - ocean colour missingness isn't random (cloud, sun angle, ice, polar
+    night), and no kernel fixes that, though the support columns make it
+    visible.
+- **Later**: with a variance per estimate, an exceedance becomes a
+  probability, and a spell can be defined on P(x > threshold).
+
+Shape: a neighbour table per grid and bandwidth (bin, neighbour,
+distance), built once like grist's mapping. The estimate is a join of
+the sums on (neighbour, step +- h) and a grouped sum in arrow or duckdb.
+spells stays I/O-free and takes estimates plus support. The estimator
+is a query on sums, so it belongs with the sums (grist, or an
+L3bin-aware sibling).
+
+**The estimator is a contract, not a method.** It gives an estimate,
+its support and, ideally, a variance per (bin, step), and the def hash
+names the estimator. Several estimators satisfy that contract:
+
+- `interp(n)`;
+- the space-time kernel;
+- the provider's own L4 analysis (OISST and MUR are already optimal
+  interpolation analyses, and DUACS SLA is mapped by OI, so spells on
+  them already run on someone else's estimator);
+- learned estimators.
+
+The kernel formula is Nadaraya-Watson regression, and transformer
+attention is the same weighted average with a *learned* K. What
+embeddings and foundation models can offer here is similarity learned
+from the data instead of distance. For example, pixels in the same
+water mass are near each other, and pixels on either side of a front
+aren't, even when they're adjacent. The concrete forms:
+
+- a kernel on embedding distance, or on embedding and space-time
+  distance combined. This keeps the estimate-plus-support structure, and
+  Kish's effective n still works with learned weights;
+- a learned gap-filler. The ocean lineage is DINEOF (EOF
+  reconstruction), DINCAE (a convolutional autoencoder that outputs a
+  mean and an error variance) and 4DVarNet;
+- embeddings as covariates for a covariate baseline ("what's usual for
+  this kind of place at this time").
+
+The guardrails for learned estimators:
+
+- **Judge on extremes, not RMSE.** Models trained on mean-type losses
+  shrink toward the mean, and spells measure exactly the tails. Score
+  against withheld real observations (artificial clouds) on peak
+  intensity, duration and spell count.
+- **Stationarity over the record.** If the estimator's skill or
+  smoothness drifts as inputs change, which MUR already does across
+  sensor eras, spell counts drift with it, and the drift looks like a
+  trend.
+- **Keep physical units.** Detecting in embedding space loses degrees C
+  and mg m-3, and with them the Hobday categories. Embeddings can set
+  the context and the weights, but the threshold stays physical.
+- **The same estimator for baseline and detection** (as above).
+
+
+## ARD products
+
+| product | shape | format | notes |
+|---|---|---|---|
+| baseline + threshold | slot x y x x, per source x def | Zarr v3 (per-pixel reads), or one COG per slot (browser and classic catalog) | the reusable layer; int16 scaled |
+| daily category / anomaly | per date | COG (Int8 category, Int16 anomaly) + STAC GeoParquet index | a grist catalog in its own right |
+| streaming state | per last-update date | small multi-band raster | run length, gap length, open spell's start and running metrics |
+| event table | one row per (series, spell) | GeoParquet, partitioned by year | start, end, peak, duration, intensities, rates, category |
+| season summaries | per season year | COG | days in spell, count, maximum intensity, first start and last end (ice advance and retreat) |
+| cell sums of spell indicators | cell x date | grist Parquet | mergeable area-in-spell |
+| `manifest.json` | per product | JSON | def hash, baseline period, source versions |
+
+**Chunking**: there are two layouts, named here by what a chunk holds,
+because the providers' names point opposite ways:
+
+- **Map layout**: one step deep, wide in space. It's for ingest, maps
+  and grist. This is CMEMS `timeChunked.zarr` (1, 720, 512), named for
+  "one time per chunk".
+- **Series layout**: deep in time, small in space. It's for baselines
+  and spells. This is CMEMS `geoChunked.zarr` (138, 32, 64), named for
+  "one place per chunk".
+
+Getting from one layout to the other is the cost: virtual references
+can't rechunk, so it means a physical rewrite. Use sources that already
+publish the series layout where you can. CMEMS does for DUACS SLA (see
+hypertidy/cmemsarco). The regional MUR Zarr in trend.sst (50 x 50 x
+ntime) is our own prototype. Icechunk is the candidate for appending
+daily data to a series-layout store.
+
+Rough sizes, uncompressed, before masking land:
+
+- MUR int16 global: 36000 x 17999 x ~8900 days, about 11.5 TB.
+- OISST int16: about 35 GB.
+- OC-CCI 5-day float32: about 320 GB.
+- NSIDC 25 km: a few GB.
+
+OISST and ice can be done on any machine. MUR needs Setonix.
+
+
+## Where compute runs
+
+| platform | strength | spells work |
+|---|---|---|
+| **Pawsey Setonix + Acacia** | home of the records; scrontab daily jobs; Acacia `aad-derived/` with anonymous read | the big rechunks and the global MUR baseline; the daily step after grist's accumulate; publication |
+| **NCI Gadi + /g/data** | the data is already there (project codes below) | bottom and subsurface MHWs on Australian shelves from BRAN2023 (cf. Amaya et al. 2023 Nat Commun for North America from an ~8 km reanalysis); reanalysis and projection spells without moving data (projections force the fixed/shifting baseline choice); publish to Acacia as `trend.ice/gadi/publish.sh` does |
+| **Nectar** | long-lived VM, raadtools collection, interactive | development, regional pilots, OISST and ice global runs; a small service answering "spells for this cell or region" from the sums |
+| **GitHub** | Pages, Actions, r-universe | sites; light recompute from published sums (cell-mean and box spells via arrow/duckdb over https); parity CI; distribution via hypertidy.r-universe.dev, CRAN later |
+| **AWS Lambda / source.coop** | the ghrsst-cogger pattern (SQS fan-out, Docker, Terraform), next to the MUR COGs | the streaming step: today's COG + the slot's baseline + yesterday's state go in, today's category + state come out, parallel by tile. Catch: the state chain is sequential, so the step must be idempotent and resume from the last good state. An option, not the default |
+
+Default: Setonix for production, Nectar for development, GitHub for
+anything that can run from published sums.
+
+### NCI projects to check
+
+On Gadi, `groups` lists your memberships and `ls /g/data/<code>` shows
+whether you can read a project. You join through Mancini
+(my.nci.org.au). "Local" means the code appears in paths in `~/Git`
+repos. "Docs" means a public page names it (checked 2026-11-17).
+
+| code | holds | source | spells use |
+|---|---|---|---|
+| `gb6` | BRAN2020, BRAN2023 (`/g/data/gb6/BRAN/BRAN2023/daily`) | local (blocklist, rv-banner, trend.ice) | bottom and subsurface MHWs; ocean-reanalysis spells |
+| `qm43` | GHRSST (`/g/data/qm43/ghrsst`) | local | MUR in place on Gadi (alternative to source.coop) |
+| `sh74` | IMOS / AODN replica (`/g/data/sh74/IMOS_AODN`) | local | moorings and national reference stations: in-situ oracles for spells |
+| `jk72` | your own working space (`/g/data/jk72/mds581/...`) | local | scratch and outputs before Acacia |
+| `ia39` | Australian Community Reference Climate Data Collection, incl. OISST v2.1 (`/g/data/ia39/aus-ref-clim-data-nci/oisst/`) | docs | OISST in place; other reference obs |
+| `rt52` | ERA5 (`/g/data/rt52/era5/`) | docs | atmospheric spells; forcing context for MHWs |
+| `zz93` | ERA5-Land | docs | land heatwaves and dry spells (generality beyond ocean) |
+| `su28` | ERA5 daily (`/g/data/su28/ERA5/daily`) | docs | daily ERA5 without aggregating hourly data |
+| `zv2` | AGCD (BoM gridded climate) | docs | Australian land heatwaves and dry spells |
+| `fs38` | CMIP6, ACCESS models (CMORised, `/g/data/fs38/publications`) | docs | projected spells (baseline choice matters) |
+| `oi10` | CMIP6 replicas, non-ACCESS models (`/g/data/oi10/replicas`) | docs | multi-model projected spells |
+| `ik11`, `cj50`, `ol01` | COSIMA ACCESS-OM2 inputs and outputs (all three needed, with `xp65`) | docs | model MHWs at 1, 0.25 and 0.1 degree |
+| `xp65` | ACCESS-NRI analysis conda environments | docs | the Python side (xarray, xclim) for survey cross-checks |
+
+
+## Phase 0: survey
+
+The comparison grid is one row per package, with these columns: baseline
+model, threshold rule, direction, persistence (minimum duration, gap,
+order, hysteresis), missing data, time step (daily only?), calendar and
+season year, metrics, categories, many series at once?, streaming?, and
+outputs.
+
+Packages to cover:
+
+- **heatwave3** first: the API, the C++ core, Zarr input, the 4D and
+  blob methods, and regional runs from a global climatology. Also the
+  differences between heatwaveR 1.0.0 and 0.5.5. MHW-MAD (DMI, ESSD
+  2026: fixed, shifting and detrended baselines) and Ocetrac (objects)
+  sit alongside.
+- R:
+  - heatwaveR (+ RmarineHeatWaves, archived)
+  - climdex.pcic, ClimInd
+  - lfstat, SPEI, SCI
+  - hydroEvents, EflowStats
+  - extRemes, evd, POT (runs declustering)
+  - anomaly (CAPA)
+  - iglu
+  - land phenology (e.g. phenofit)
+- Python: xclim (`run_length`, the spell indicators), marineHeatWaves,
+  xmhw.
+- Near-real-time and operational prior art, for presentation:
+  - the Marine Heatwave Tracker (heatwave3 on OISST, two baselines);
+  - NOAA PSL forecasts;
+  - Coral Reef Watch;
+  - BoM ACCESS-S2;
+  - IMOS AusTemp;
+  - C3S;
+  - Mercator.
+
+  The summary's table compares them.
+- Estimators, a separate short grid with these columns: output variance?
+  tested on extremes? stationary over the record? The list: DINEOF,
+  DINCAE, 4DVarNet, the providers' L4 methods (OI for OISST, MRVA for
+  MUR, DUACS mapping), and any gap-free L4 chl products (CMEMS
+  GlobColour; check). Foundation models and embeddings belong only where
+  they give a similarity usable as K.
+
+The survey goes in `spells/inst/survey/` or a doc.
+
+
+## Phases
+
+**Don't block trend.sst.** The summary's section 4 is mostly trend.sst
+product work, and it runs now on the existing pipeline:
+
+- fix the Oliver claim;
+- label baselines;
+- add the highest-category map plane and the reached-category charts;
+- revise the Tasman and WA boxes;
+- run the Nino-1+2 deep dive while the El Nino is on.
+
+spells is extracted in parallel. Parity mode keeps the two continuous,
+and anything trend.sst builds in `R/mhw.R` meanwhile moves into spells
+at extraction. The spells side of section 4 is phase 1 below: parity
+against 1.0.0 and heatwave3, cold spells, the detrended baseline type,
+area metrics as sums, and the ice mask.
+
+0. **Survey and decisions** (this brief, the open questions below).
+1. **Extract** `spells` from trend.sst `R/mhw.R`:
+   - turn the parity script into tests against each named version
+     (0.5.5, 1.0.0, heatwave3);
+   - make the rule order explicit;
+   - add the eligibility mask;
+   - add the fixed and detrended baseline types;
+   - ship the `hobday2016`, `hobday2018` and `schlegel2021` presets.
+
+   trend.sst then depends on it with `parity = "heatwaveR-0.5.5"`, so
+   nothing it publishes changes and the tests stay green. Moving
+   trend.sst to clean rules is a separate, visible step, and its labels
+   say which rules it uses.
+2. **Generality gate 1 (ice)**: re-express trend.ice's ice season through
+   spells. It must reproduce the published Int16 COGs exactly.
+3. **Generality gate 2 (chl)**: bloom phenology on 5-day composites, the
+   non-daily step and heavy missingness.
+   Then **3b. Kernel estimation**: chl on fine bins (L3bin or OC-CCI
+   native), comparing `interp(n)`, the space-time kernel and one learned
+   estimator (DINCAE-style, or a kernel on embedding distance) against
+   withheld observations. They're scored on spell metrics (peak
+   intensity, duration, count) and on the support of filled steps, not
+   on RMSE.
+4. **Streaming**: `spell_state()` / `spell_step()`, checked against batch
+   over a whole record apart from the provisional tail.
+5. **Global products**:
+   - OISST per-pixel MHW and cold spells, ice-masked;
+   - then daily category COGs;
+   - then the indicator sums at a fine S2 level, which gives every
+     standard area metric for any registry region;
+   - then the trend.sst site.
+
+   After that, MUR on Setonix, tile by tile in the deep-dive order (the
+   big rechunk spread over time). Events as objects follow, as a pass
+   over the COGs.
+6. **SLA spells** (per pixel from CMEMS `geoChunked.zarr`, no rechunk)
+   and **compound spells**. All members share the S2 level 5 registry,
+   so a compound spell (MHW + low chl, MHW + high SLA, MHW + early
+   retreat; cf. Le Grix et al. 2021) is a join on (cell, date). The
+   family can do this better than anyone else. Compound work lives in
+   whichever member needs it first.
+7. **CRAN**, and a conversation with the heatwave3 maintainers
+   (heatwaveR is frozen): a complementary engine with parity tests, not
+   a fork. Perhaps heatwave3 as a backend for the Hobday presets.
+
+
+## Off scope, to explore: an L3 bin database for ocean colour
+
+Not part of spells, but it feeds trend.chl, the kernel estimator and
+bloom spells.
+
+**The idea.** A modern queryable store of NASA-style L3 bins: DuckDB
+over Parquet, one row per (bin, date) with `nobs`, `nscenes`, the
+weights, and sums and sums of squares per product. It covers the whole
+archive: SeaWiFS 1997 on, MODIS, VIIRS, and now PACE OCI.
+- ISIN bin numbers run row by row, so row-group statistics on `bin`
+  prune by latitude band. A region is a set of bin ranges, just as it's
+  a set of S2 token ranges.
+- hypertidy/L3bin supplies the grid geometry.
+- It's grist-shaped: the bins are the cells, and NASA's L3b files are
+  already binned, so there's no pixel mapping. grist's README already
+  cites L3bin as the prior art.
+
+**The obstacle from 2016/17: local calibration.** Regional algorithms,
+such as Johnson et al. 2013 for the Southern Ocean, where standard OCx
+underestimates chl, seemed to need a return to L1. It helps to stage
+what each change actually needs:
+
+| change | needs | why |
+|---|---|---|
+| a different chl algorithm (regional band-ratio, OWT blend) | Rrs per pixel (L2), or Rrs in bins with a known bias | chl = f(Rrs) is nonlinear, so f(mean Rrs) != mean f(Rrs) |
+| a different atmospheric correction, vicarious calibration, glint or ice-adjacency handling | L1 (l2gen) | these act before Rrs exists |
+| a different flagging or masking policy | L2 flags per pixel | binning has already applied NASA's flags |
+
+So a regional *algorithm* may need only Rrs, not L1. Whether binned Rrs
+is good enough is a store-design question:
+- L3b keeps sum and sum of squares **per band** but no cross-products
+  between bands. The ratio algorithm's bias on binned Rrs (by the delta
+  method) needs band covariances, which aren't there.
+- A store we design could keep the cross-products of the bands an
+  algorithm uses. That's the grist principle: store the sufficient
+  statistics that make the algorithms you care about computable.
+
+**What to check in what already exists:**
+- **ESA OC-CCI** (v6.0, already on Acacia for trend.chl):
+  - Does the daily L3S carry merged Rrs per pixel at 4 km? If it does, a
+    regional algorithm applies per pixel per day without L1 or L2.
+  - CCI's chl already blends algorithms by optical water class, which is
+    a form of local algorithm. Does that help or hurt in the Southern
+    Ocean?
+  - Per-pixel bias and rmsd are the quality weights.
+- **IMOS** ocean colour (MODIS-Aqua and VIIRS over the Australian
+  region; check `sh74` on Gadi and AODN):
+  - Which processing levels (L2 swath, or daily 1 km composites)?
+  - Which algorithms ship side by side (e.g. OC3, GSM)?
+  - Is Rrs provided?
+  - Is any Southern Ocean regional algorithm in it?
+- **NASA L3b** directly: the products and bands carried (Rrs per band?),
+  the weighting scheme, and PACE OCI's hyperspectral bins, which make
+  "store Rrs, apply algorithms later" much more valuable.
+
+**First experiment:** one year of one sensor's L3b into Parquet, queried
+with DuckDB. Compare chl from binned Rrs with a regional algorithm
+against CCI's per-pixel daily Rrs over the same bins and days. That
+measures the nonlinearity bias directly, and says whether L1 or L2 is
+really needed for the Southern Ocean.
+
+
+## Decisions
+
+- 2026-11-17: **hypertidy/spells**, alongside grist.
+- 2026-11-17: **clean rules by default**, with heatwaveR matching as
+  `parity = "<engine>-<version>"`, which names a version (see "The model").
+- 2026-11-17: **compound and cross-member work lives in whichever member
+  needs it first**. It moves to the family home only if a second member
+  needs it.
+- 2026-11-17: **missing data under clean rules**: interpolate runs of n
+  or fewer missing steps, then break and censor (see "The model"). n is
+  part of each definition.
+
+
+## Open questions
+
+- Is the Lambda streaming step worth building, or is Setonix scrontab
+  enough?
+- Where does the space-time kernel estimator live: grist (it's a query
+  on sums), or an L3bin-aware sibling for the ISIN grid? Does grist
+  generalise beyond S2 to carry L3bin grids?
+- Add `sumww` (sum of squared weights) to the grist schema now, before
+  more records are backfilled?
+- How complete must the baseline data be? This is separate from the
+  spell missing policy. A slot's window needs a minimum number of
+  observations before it gets a baseline. Today `mhw_clim()` stops on
+  any NA, which won't work for chl.
+- Baseline publishing format: Zarr v3, 366 COGs, or both?
+- Does "Heatwaves" get its own card on the trend landing page, pointing
+  to the member tabs?
+- heatwave3: an oracle only (Suggests), or a backend for the Hobday
+  presets? And which parity version is the default for new trend.sst
+  products: 0.5.5 (continuity), 1.0.0, or heatwave3?
+- The region registry: confirm it goes in the family home (trend). Is
+  it only data (polygons plus cell sets), or does it get a small R
+  helper?
+- What S2 level for the indicator sums: one fine level for everything,
+  or a level per member?
+- Does the ice mask for polar SST come from MUR's own
+  `sea_ice_fraction` (self-contained), or from trend.ice (one ice truth
+  for the family)?
+
+
+## References in play
+
+- Hobday et al. 2016, Prog. Oceanogr. 141 (the MHW definition).
+- Hobday et al. 2018, Oceanography 31(2) (categories).
+- Schlegel et al. 2021, Prog. Oceanogr. (marine cold spells).
+- Massom et al. 2013, PLoS ONE 8(5) e64756 (ice season).
+- Siegel et al. 2002, Science 296 (bloom threshold: median + 5%).
+- Johnson et al. 2013, JGR Oceans 118 (Southern Ocean chl algorithms;
+  the case for local algorithms in the L3 bin thread).
+- Oliver et al. 2017, Nat. Commun. 8:16101 (Tasman 2015/16; SEAus box
+  147-155 E, 37-45 S: 251 days, 2.9 C).
+- Kajtar et al. 2021 (Australian MHW catalogue; Tasman box 147-157 E,
+  37-46 S: 318 days, 2.8 C on 1983-2012).
+- Smith et al. 2025, Prog. Oceanogr. 231:103404,
+  doi:10.1016/j.pocean.2024.103404 (baseline types and protocol).
+- Chevillard 2026 (MHW metrics across SST products); Zhang et al. 2025
+  (SST under sea ice). Full citations for these and everything in the
+  summary are in `trend.ice/research_notes/Marine heatwave presentation
+  and regions/`.
+- Pearce & Feng 2013, J. Mar. Syst. 111-112 (WA 2010/11).
+- Le Grix et al. 2021, Biogeosciences (compound high-temperature and
+  low-chlorophyll extremes).
+- Amaya et al. 2023, Nature 616:29-32, doi:10.1038/d41586-023-00924-2
+  (comment: MHW definitions, fixed vs shifting baselines).
+- Amaya et al. 2023, Nat. Commun. 14:1038,
+  doi:10.1038/s41467-023-36567-0 (bottom MHWs on North American shelves
+  from an ~8 km reanalysis; the model for a BRAN2023 product). CC-BY;
+  the abstract was read from Crossref, the full text not yet.
