@@ -63,9 +63,11 @@ There's a fuller summary in `trend.ice/reports/spells-summary.md`. Full
 citations are in `trend.ice/research_notes/Marine heatwave presentation
 and regions/`. What it means for the engine:
 
-- **heatwaveR 1.0.0 (2026-10-19) is the final release.** heatwave3
-  (v1.5.0) succeeds it:
-  - multi-threaded C++ for R and Python, reading NetCDF and Zarr;
+- **heatwaveR 1.0.0 (2026-10-19) is the final release**, on GitHub only
+  (CRAN still has 0.5.5). heatwave3 (v1.5.0, GitHub and PyPI) succeeds
+  it:
+  - multi-threaded C++ for R and Python, reading NetCDF (and Zarr, in
+    Python only);
   - daily categories, 4D depth-resolved detection and blob detection;
   - regional runs from a global climatology.
 
@@ -172,7 +174,9 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
 - **time axis**: an index plus a *slot* (the climatological position:
   day of year on a 366 calendar, ice-year day, 5-day composite number)
   and a *season year* (calendar year, ice year from 15 Feb, or an austral
-  bloom year). Don't assume daily data: chl is 5-day.
+  bloom year). Don't assume daily data: chl is 5-day. Don't assume the
+  Gregorian calendar either: some CMIP6 models in `oi10` use `noleap`
+  (e.g. CESM2) or `360_day` (e.g. UKESM1), which heatwave3 can't read.
 - **baseline**: the expected value per slot. The options are a
   climatology (windowed and smoothed, heatwaveR style), a fixed value, a
   per-season statistic (bloom: the median of that year), a trend-aware or
@@ -246,21 +250,30 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
   spell instead.
 
 **Parity names a version**: `parity = "heatwaveR-0.5.5"`,
-`"heatwaveR-1.0.0"` or `"heatwave3"`.
+`"heatwaveR-1.0.0"` or `"heatwave3-1.5.0"`. The survey has the full table
+of switches for each version (`inst/survey/heatwaveR-versions.md`).
 
 `heatwaveR-0.5.5` is what trend.sst matches now (from `R/mhw.R`):
 - NA is set to seas after `maxPadLength` interpolation;
 - the leading gap isn't joined;
 - a trailing gap of `max_gap` or less is joined at the end of the
   series;
+- the climatology window wraps within each year at the new year;
 - seas and thresh are rounded to 4 decimals;
 - Feb 29 in non-leap years is filled with the rounded mean of 28 Feb and
-  1 Mar.
+  1 Mar;
+- missing (doy, year) cells in the climatology period are filled with
+  that doy's mean across years. That's in heatwaveR but not in
+  `R/mhw.R`, which stops on any NA.
 
-1.0.0 fixed `joinAcrossGaps`, and the summary also reports a change to
-the moderate-category comparison (`>` to `>=`). Its version label
-(0.5.3.x) is older than 0.5.5, so check whether 0.5.5 already has it.
-Every quirk is a named, documented switch, tested against the version it
+1.0.0 drops two of these. The window takes the days across the new year
+from the adjacent years, so seas and thresh change from 12 Dec to 20
+Jan, and the trailing gap isn't joined. The summary's "0.5.3.x" change
+to the moderate-category comparison (`>` to `>=`) is already in 0.5.5,
+so it changes nothing here. heatwave3 1.5.0 equals 1.0.0 on gap-free
+data, but not with gaps: it leaves missing cells out of the window
+instead of filling them, and doesn't interpolate at detection. Every
+quirk is a named, documented switch, tested against the version it
 names.
 
 API sketch (not a commitment):
@@ -300,6 +313,9 @@ st <- spell_state(...); spell_step(st, x_today, b, def)   # streaming
 
     trend.sst's 318 days matches Kajtar, not Oliver as its method page
     says.
+  - The detrended baseline type has no heatwave3 oracle:
+    `ts2clm3(detrend = TRUE)` changes the climatology only, and
+    detection still reads the raw SST (see the survey).
   - `schlegel2021` (cold spells): parity, as for Hobday.
   - `massom2013`: trend.ice's current COGs, exactly.
   - `siegel2002`: published bloom timing.
@@ -369,7 +385,9 @@ the region-boundary debate goes away, for the pixel tier at least.
 mask. Use the same neighbour table as the kernel estimator (below).
 Unlike per-pixel spells, components cross tile boundaries, so they need
 halos or a union-find merge across edges. That's a later pass over the
-published daily category COGs, not part of the core.
+published daily category COGs, not part of the core. heatwave3's
+`detect_blob3()` is prior art, but it labels the raw exceedance mask,
+with no minimum duration or gap joining, so it isn't an oracle for this.
 
 
 ## Estimation: beyond pixel series
@@ -550,9 +568,10 @@ Packages to cover:
 
 - **heatwave3** first: the API, the C++ core, Zarr input, the 4D and
   blob methods, and regional runs from a global climatology. Also the
-  differences between heatwaveR 1.0.0 and 0.5.5. MHW-MAD (DMI, ESSD
-  2026: fixed, shifting and detrended baselines) and Ocetrac (objects)
-  sit alongside.
+  differences between heatwaveR 1.0.0 and 0.5.5. *Done 2026-11-17 from
+  the source (not run): `inst/survey/heatwave3.md` and
+  `heatwaveR-versions.md`.* MHW-MAD (DMI, ESSD 2026: fixed, shifting and
+  detrended baselines) and Ocetrac (objects) sit alongside.
 - R:
   - heatwaveR (+ RmarineHeatWaves, archived)
   - climdex.pcic, ClimInd
@@ -581,7 +600,8 @@ Packages to cover:
   GlobColour; check). Foundation models and embeddings belong only where
   they give a similarity usable as K.
 
-The survey goes in `spells/inst/survey/` or a doc.
+The survey is in `inst/survey/`: `grid.csv`, plus a notes file per
+package and a findings list in its README.
 
 
 ## Phases
@@ -740,7 +760,10 @@ really needed for the Southern Ocean.
   to the member tabs?
 - heatwave3: an oracle only (Suggests), or a backend for the Hobday
   presets? And which parity version is the default for new trend.sst
-  products: 0.5.5 (continuity), 1.0.0, or heatwave3?
+  products: 0.5.5 (continuity), 1.0.0, or heatwave3? The survey leans
+  towards an oracle. heatwave3 has no in-memory path to event metrics,
+  so as a backend it would need temporary NetCDF files. Golden outputs
+  stored in the repo need neither package installed.
 - The region registry: confirm it goes in the family home (trend). Is
   it only data (polygons plus cell sets), or does it get a small R
   helper?
