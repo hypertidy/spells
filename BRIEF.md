@@ -569,8 +569,8 @@ Packages to cover:
 - **heatwave3** first: the API, the C++ core, Zarr input, the 4D and
   blob methods, and regional runs from a global climatology. Also the
   differences between heatwaveR 1.0.0 and 0.5.5. *Done 2026-11-17 from
-  the source (not run): `inst/survey/heatwave3.md` and
-  `heatwaveR-versions.md`.* MHW-MAD (DMI, ESSD 2026: fixed, shifting and
+  the source and checked by running (`inst/survey/heatwave3.md`,
+  `heatwaveR-versions.md` and `checks/`).* MHW-MAD (DMI, ESSD 2026: fixed, shifting and
   detrended baselines) and Ocetrac (objects) sit alongside.
 - R:
   - heatwaveR (+ RmarineHeatWaves, archived)

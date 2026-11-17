@@ -13,8 +13,8 @@ the source or from running the code.
 
 | package | status | notes |
 |---|---|---|
-| heatwave3 1.5.0 | source read 2026-11-17, not run | [heatwave3.md](heatwave3.md) |
-| heatwaveR 1.0.0 vs 0.5.5 | source diff 2026-11-17, not run | [heatwaveR-versions.md](heatwaveR-versions.md) |
+| heatwave3 1.5.0 | source read and run 2026-11-17 | [heatwave3.md](heatwave3.md) |
+| heatwaveR 1.0.0 vs 0.5.5 | source diff and run 2026-11-17 | [heatwaveR-versions.md](heatwaveR-versions.md) |
 | MHW-MAD (DMI, ESSD 2026) | to do | |
 | Ocetrac | to do | |
 | climdex.pcic, ClimInd | to do | |
@@ -51,8 +51,14 @@ the source or from running the code.
 8. **heatwave3 has no in-memory path to event metrics.** That favours an
    oracle over a backend.
 
+Findings 2 to 5 were confirmed by running (`checks/heatwave3.R`, output
+in `checks/heatwave3.out`). The details are in heatwave3.md, "Checked by
+running".
+
 ## Running checks
 
-Both "not run" rows list what to confirm by running. Install heatwave3
-and heatwaveR 1.0.0 into a scratch library (`R CMD INSTALL -l <lib>`), so
-the installed heatwaveR 0.5.5 that trend.sst depends on stays untouched.
+`checks/` holds the scripts and their saved output. heatwaveR 1.0.0 goes
+in a library of its own (`R CMD INSTALL -l ~/R/heatwaveR-1.0.0`), because
+in the default library it would replace the 0.5.5 that trend.sst's
+parity check (`validate/mhw_tasman_pixels.R`) uses. The script runs each
+heatwaveR version in a separate R process.

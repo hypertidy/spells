@@ -2,9 +2,11 @@
 
 - **Source read:** robwschlegel/heatwave3 at `8aff3e5` (2026-11-02), MIT.
   It's on GitHub and PyPI (`py-v1.5.0`), not on CRAN.
-- **How:** read 2026-11-17 from source, tests and docs. **Nothing was
-  built or run**: building in this session wasn't permitted. Claims
-  marked *(run to confirm)* are the ones a test run should check first.
+- **How:** read 2026-11-17 from source, tests and docs, then built and
+  run the same day against heatwaveR 1.0.0 and 0.5.5. The four claims
+  that needed a run are marked *(confirmed by running)*; the script and
+  its output are in `checks/`, and the results are under "Checked by
+  running" below.
 - Paths below are relative to the heatwave3 repo at that commit.
 
 ## What it is
@@ -96,7 +98,7 @@ events, never before the first or after the last. There's no hysteresis.
 - **Detection: no interpolation at all, even when `maxPadLength` is set.**
   `detect3()` passes `maxPadLength` only to `ts2clm3()`, and
   `detect_event3()` reads the raw SST. heatwaveR detects on the
-  interpolated series that `ts2clm()` returns. *(run to confirm)*
+  interpolated series that `ts2clm()` returns. *(confirmed by running)*
   - A missing day breaks a run of exceedances.
   - Inside a gap-joined event, a missing day counts as `seas`, so its
     intensity is 0.
@@ -255,7 +257,7 @@ So events are detected on **raw SST against a climatology estimated from
 detrended data**. In effect that's a fixed baseline at the period's
 midpoint, with a narrower spread (a lower `thresh` relative to `seas`). It
 isn't the Jacox et al. 2020 approach of detecting on detrended anomalies.
-*(run to confirm)* So heatwave3 can't be the oracle for the Smith et al.
+*(confirmed by running)* So heatwave3 can't be the oracle for the Smith et al.
 2025 detrended baseline type.
 
 ## Left to spells
@@ -307,15 +309,63 @@ items marked † are new or sharper than the brief:
    mask. The test for spells' version is a component labelling of the
    spell mask, not agreement with `detect_blob3()`.
 
-## To confirm by running
+## Checked by running
 
-Use a scratch library, so the installed heatwaveR 0.5.5 stays untouched:
+`checks/heatwave3.R`, on 2026-11-17, with heatwave3 1.5.0, heatwaveR
+1.0.0 (in a library of its own) and heatwaveR 0.5.5, all on `sst_WA`
+with the climatology period 1982-2011 and the defaults otherwise. The
+output is in `checks/heatwave3.out`.
 
-- with `maxPadLength = 2` and 1-2 day gaps inside a heatwave, heatwave3
-  splits events that heatwaveR 1.0.0 keeps whole;
-- with missing days in the climatology period, the two climatologies
-  differ (dropping versus filling with the day-of-year mean);
-- with `detrend = TRUE`, events on a series with a strong trend look like
-  fixed-baseline events, not detrended ones;
-- on gap-free data, heatwave3 equals heatwaveR 1.0.0 and differs from
-  0.5.5 only from 12 December to 20 January and at the series end.
+1. **Gap-free, heatwave3 equals heatwaveR 1.0.0 exactly.** The
+   climatologies are identical on all 366 days of the year, and so are
+   all 90 events, in dates and metrics.
+   - 1.0.0 differs from 0.5.5 on 39 days of the year, 12 December to 19
+     January. That's the reach of the 11-day window plus the 31-day
+     smoothing; 20 January rounds the same at 4 decimals. The largest
+     changes are 0.0015 °C in `seas` and 0.0007 °C in `thresh`, smaller
+     than the 0.0044 and 0.0089 °C heatwaveR's NEWS gives for `sst_WA`,
+     which doesn't say what period it used.
+   - The event dates are the same in both, and the metrics of events
+     over those days differ by up to 0.026 °C·days in cumulative
+     intensity.
+   - With the series cut to end one day after an event, 0.5.5 joins that
+     day into the event (22 days rather than 21). 1.0.0 and heatwave3
+     don't.
+2. **Gaps inside events, with `maxPadLength = 2`.** One or two days were
+   removed from each of the 41 events of 10 days or more. heatwaveR
+   1.0.0 interpolates them and keeps all 41 events as they were.
+   heatwave3 keeps only 15 of them:
+   - a gap near the start leaves a run shorter than 5 days, which is
+     dropped, so the event starts later;
+   - a gap next to a day that was already below the threshold makes a
+     non-exceeding stretch longer than `maxGap`, which splits the event;
+   - a gap that is joined adds zero intensity, so cumulative intensity
+     differs by up to 4.8 °C·days.
+
+   The climatologies are identical, and heatwaveR detecting on the same
+   gapped series without interpolation gives heatwave3's events exactly.
+   So the whole difference is that heatwave3 doesn't interpolate at
+   detection.
+3. **Gaps in the climatology period, no interpolation.** 358 days (3.3%
+   of the period) were removed, in runs of 1 to 5. The climatologies
+   differ on every day of the year, by up to 0.002 °C in `seas` and
+   0.038 °C in `thresh`, from leaving the gaps out of the window against
+   filling them with the day-of-year mean. heatwave3 finds 90 events and
+   heatwaveR 93, and 77 of them have the same dates in both.
+4. **`detrend = TRUE` changes the climatology only.** 0.04 °C per year
+   was added to `sst_WA`; the fitted slope over 1982-2011 is 0.053 °C
+   per year.
+   - The climatology equals heatwaveR's on the series detrended by least
+     squares over the climatology period and centred at its midpoint.
+   - The events equal heatwaveR's detection on the **raw** series
+     against that climatology, all 98.
+   - Detecting on the detrended series instead gives 75 events, only 6
+     with the same dates.
+   - Event days by start decade rise with `detrend = TRUE` as they do
+     with a fixed baseline. On the detrended series they stay flat:
+
+     | | 1982-91 | 1992-01 | 2002-11 | 2012-22 |
+     |---|---|---|---|---|
+     | heatwave3, `detrend = TRUE` | 26 | 268 | 852 | 1248 |
+     | heatwave3, `detrend = FALSE` | 21 | 244 | 751 | 1123 |
+     | detected on the detrended series | 231 | 258 | 351 | 253 |

@@ -12,7 +12,10 @@ there's no git tag or GitHub release for 1.0.0. Pin it by commit:
 `remotes::install_github("robwschlegel/heatwaveR@e0ae30d")`.
 
 **How this was compared:** `diff` of `R/` and `src/` between the two
-sources, plus the 1.0.0 `NEWS.md`. Nothing was run.
+sources, plus the 1.0.0 `NEWS.md`. The new-year window and the
+trailing gap were then confirmed by running both versions on `sst_WA`
+(`checks/heatwave3.R`; results in `heatwave3.md`, "Checked by
+running").
 
 **Name clash:** heatwaveR has its own `ts2clm3()` and `detect_event3()`
 (data.table versions). They are not the functions of the same names in
@@ -22,7 +25,7 @@ the heatwave3 package.
 
 | change | 0.5.5 | 1.0.0 | effect | where |
 |---|---|---|---|---|
-| window at the new year | wraps within each year: 1 Jan is pooled with 27-31 Dec of the same year | days before 1 Jan come from the previous year, days after 31 Dec from the next; the first and last years get shorter windows | `seas`/`thresh` change from 12 Dec to 20 Jan with the defaults (by up to 0.0044 / 0.0089 °C on `sst_WA`, per NEWS), and so do the events overlapping those days | `R/clim_spread.R` |
+| window at the new year | wraps within each year: 1 Jan is pooled with 27-31 Dec of the same year | days before 1 Jan come from the previous year, days after 31 Dec from the next; the first and last years get shorter windows | `seas`/`thresh` change from 12 Dec to 20 Jan with the defaults, and so do the metrics of events overlapping those days. Run on `sst_WA` (1982-2011): 39 days differ, 12 Dec to 19 Jan, by up to 0.0015 / 0.0007 °C (NEWS says 0.0044 / 0.0089 °C); event dates don't change | `R/clim_spread.R` |
 | quantile rank with gaps in the window | rank from the full window size | rank from the number of finite values | only when a window has missing values. After the fills below, that happens in 1.0.0 only through the new padding (first and last years) | `src/clim_calc.cpp`; `R/ts2clm.R` picks the R or C++ path |
 | trailing gap | a gap of `maxGap` or less after the last event is joined into it | not joined | the last event's `date_end`, duration, intensities and `rate_decline` | `R/proto_event.R` |
 | seasons in `category()` | calendar quarters | meteorological seasons by month | labels only | `R/category.R` |
