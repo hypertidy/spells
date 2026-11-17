@@ -185,6 +185,19 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
     adaptation-adjusted, periodically updated) and **reference period**
     are part of the def. Every label is generated from them, never typed
     by hand.
+  - The type's name alone doesn't pin a baseline down (see the survey):
+    - **detrended** needs the trend model (one per series, as heatwave3
+      fits it, or one per slot, as MHW-MAD fits it per calendar date),
+      the fitting period (the reference period or the whole record), and
+      detection on the detrended series. Without detection on it, it's a
+      fixed baseline with a narrower spread, as in heatwave3.
+    - **shifting** needs the window length, its alignment (MHW-MAD's is
+      trailing and includes the year being assessed; centred is the
+      other choice), the update step, and the start before a full window
+      exists. The baseline is a value per step, so a shifting baseline
+      is a threshold that varies along one continuous series. Where the
+      window steps at the new year, the threshold steps too, but spells
+      run across it rather than restarting.
   - For comparisons, use a fixed baseline on an earlier work's period,
     with detrended or shifting results as best and worst cases.
   - The choice matters most for long records and for projections (Amaya
@@ -223,6 +236,10 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
     computed per step. The rule is part of the def: floor of the
     multiple, with event days below 1x counted as I. That's what
     trend.sst does now.
+  - The category **unit** is its own parameter, defaulting to the
+    detection threshold. The Hobday presets fix it at p90 minus the
+    baseline. MHW-MAD's 95th and 99th percentile products use their own
+    threshold, so their categories aren't Hobday's.
 - **summaries** per season year: spell count, days in spell, days at or
   above each category, first start, last end (ice advance and retreat
   are summaries, not new algorithms), maximum intensity and the highest
@@ -315,7 +332,9 @@ st <- spell_state(...); spell_step(st, x_today, b, def)   # streaming
     says.
   - The detrended baseline type has no heatwave3 oracle:
     `ts2clm3(detrend = TRUE)` changes the climatology only, and
-    detection still reads the raw SST (see the survey).
+    detection still reads the raw SST (see the survey). MHW-MAD's
+    detrended products are data with no code, giving per-day anomalies
+    for one trend model (per calendar date over 1982–2024).
   - `schlegel2021` (cold spells): parity, as for Hobday.
   - `massom2013`: trend.ice's current COGs, exactly.
   - `siegel2002`: published bloom timing.
@@ -386,8 +405,22 @@ mask. Use the same neighbour table as the kernel estimator (below).
 Unlike per-pixel spells, components cross tile boundaries, so they need
 halos or a union-find merge across edges. That's a later pass over the
 published daily category COGs, not part of the core. heatwave3's
-`detect_blob3()` is prior art, but it labels the raw exceedance mask,
-with no minimum duration or gap joining, so it isn't an oracle for this.
+`detect_blob3()` and Ocetrac are prior art, but both label an
+exceedance mask with no minimum duration or gap joining, so neither is
+an oracle for this. From Ocetrac (see the survey):
+- **Linking rules:** Ocetrac offers 3-D components (26 neighbours) or
+  overlap between adjacent frames with a containment threshold, which
+  limits how far chains of merges can run. The def names the rule and
+  its connectivity.
+- **Weighted area:** area filters and sums use cell area (grist weights),
+  not cell counts, which is what Ocetrac uses.
+- **No dataset-relative thresholds:** Ocetrac's minimum area is a
+  percentile of all blob areas, so past events change whenever data is
+  added. That breaks "batch and streaming agree".
+- **Morphological cleaning** (Ocetrac closes and then opens each frame)
+  adds pixels that don't exceed and drops some that do. If spells offers
+  it, it's a separate step that the def records, periodic in longitude
+  only.
 
 
 ## Estimation: beyond pixel series
@@ -571,7 +604,9 @@ Packages to cover:
   differences between heatwaveR 1.0.0 and 0.5.5. *Done 2026-11-17 from
   the source and checked by running (`inst/survey/heatwave3.md`,
   `heatwaveR-versions.md` and `checks/`).* MHW-MAD (DMI, ESSD 2026: fixed, shifting and
-  detrended baselines) and Ocetrac (objects) sit alongside.
+  detrended baselines) and Ocetrac (objects) sit alongside. *Done
+  2026-11-17: `mhw-mad.md` (from the paper and data README; the code is
+  under embargo) and `ocetrac.md` (from the source, not run).*
 - R:
   - heatwaveR (+ RmarineHeatWaves, archived)
   - climdex.pcic, ClimInd

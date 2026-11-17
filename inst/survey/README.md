@@ -15,8 +15,8 @@ the source or from running the code.
 |---|---|---|
 | heatwave3 1.5.0 | source read and run 2026-11-17 | [heatwave3.md](heatwave3.md) |
 | heatwaveR 1.0.0 vs 0.5.5 | source diff and run 2026-11-17 | [heatwaveR-versions.md](heatwaveR-versions.md) |
-| MHW-MAD (DMI, ESSD 2026) | to do | |
-| Ocetrac | to do | |
+| MHW-MAD (DMI, ESSD 2026) | paper and data README read 2026-11-17; code under embargo | [mhw-mad.md](mhw-mad.md) |
+| Ocetrac 0.1.7 | source read 2026-11-17, not run | [ocetrac.md](ocetrac.md) |
 | climdex.pcic, ClimInd | to do | |
 | lfstat, SPEI, SCI | to do | |
 | hydroEvents, EflowStats | to do | |
@@ -50,6 +50,34 @@ the source or from running the code.
    `noleap` and `360_day` output.
 8. **heatwave3 has no in-memory path to event metrics.** That favours an
    oracle over a backend.
+9. **"Detrended" is three different methods so far:**
+   - heatwave3 fits one trend per pixel over the climatology period and
+     changes only the climatology;
+   - MHW-MAD fits one trend per pixel and calendar date over the whole
+     record, and detects on the detrended SST;
+   - Ocetrac fits a linear term inside a monthly harmonic regression over
+     the whole record.
+
+   The baseline def needs the trend model, the fitting period, and
+   whether detection reads the detrended series.
+10. **MHW-MAD's shifting baseline is a trailing 30-year window that
+    includes the year being assessed**, moving one year at a time. The
+    paper doesn't say how events across the new year meet the two
+    climatologies.
+11. **MHW-MAD ties the category unit to the detection percentile**: its
+    95th and 99th percentile products use their own threshold minus the
+    mean. So the category unit is a def parameter of its own.
+12. **MHW-MAD is data with no code** (it's under embargo). It can be an
+    oracle for per-day state on ESA CCI input, but not for event metrics.
+    It has no ice mask, and no detrended category dataset is listed.
+13. **Ocetrac tracks a cleaned exceedance mask, as heatwave3's blobs do**,
+    with no minimum duration. It filters by area in grid cells, against a
+    percentile of all blob areas. It links blobs either as 3-D
+    components or by overlap between adjacent frames, with a
+    containment threshold. Neither tool is an oracle for objects built
+    from spells. Ocetrac's linking rules are worth offering, but its
+    area filter is not, because it is unweighted and changes with the
+    data.
 
 Findings 2 to 5 were confirmed by running (`checks/heatwave3.R`, output
 in `checks/heatwave3.out`). The details are in heatwave3.md, "Checked by
