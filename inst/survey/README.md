@@ -17,7 +17,8 @@ the source or from running the code.
 | heatwaveR 1.0.0 vs 0.5.5 | source diff and run 2026-11-17 | [heatwaveR-versions.md](heatwaveR-versions.md) |
 | MHW-MAD (DMI, ESSD 2026) | paper and data README read 2026-11-17; code under embargo | [mhw-mad.md](mhw-mad.md) |
 | Ocetrac 0.1.7 | source read 2026-11-17, not run | [ocetrac.md](ocetrac.md) |
-| climdex.pcic, ClimInd | to do | |
+| climdex.pcic 1.2-0 | source read 2026-11-17, not run | [climdex.pcic.md](climdex.pcic.md) |
+| ClimInd 0.1-3 | source read 2026-11-17, not run | [climind.md](climind.md) |
 | lfstat, SPEI, SCI | to do | |
 | hydroEvents, EflowStats | to do | |
 | extRemes, evd, POT | to do | |
@@ -78,6 +79,29 @@ the source or from running the code.
     from spells. Ocetrac's linking rules are worth offering, but its
     area filter is not, because it is unweighted and changes with the
     data.
+14. **climdex.pcic, the ETCCDI reference, is off CRAN** (archived in
+    2023), and so is its PCICt dependency (2025). Store golden WSDI and
+    CSDI outputs. Its percentile window wraps within the year, as
+    heatwaveR 0.5.5's does. It uses 365 slots with 29 February in 28
+    February's slot, type-8 quantiles and no smoothing. WSDI uses the
+    out-of-base thresholds in every year: the in-base bootstrap is only
+    for the percentage indices.
+15. **Assigning a spell to a season year varies by package:**
+    - by start (heatwaveR and heatwave3);
+    - by end (climdex.pcic CDD/CWD);
+    - days split by year (WSDI with `spells.can.span.years`);
+    - cut at the boundary, with each piece having to pass the minimum
+      (WSDI's default).
+
+    The rule belongs in the def.
+16. **climdex.pcic reads `noleap` and `360_day` calendars** (through
+    PCICt). It's the prior art for spells' slot definition beyond
+    Gregorian.
+17. **ClimInd isn't an ETCCDI oracle.** Its WSDI and CSDI take one
+    threshold from the whole record, and runs can't cross the end of a
+    year. Its CSDI comparison and GSL minimum differ from its own docs.
+    It labels winter by its January year, where climdex.pcic uses the
+    December year.
 
 Findings 2 to 5 were confirmed by running (`checks/heatwave3.R`, output
 in `checks/heatwave3.out`). The details are in heatwave3.md, "Checked by

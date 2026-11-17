@@ -177,6 +177,13 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
   bloom year). Don't assume daily data: chl is 5-day. Don't assume the
   Gregorian calendar either: some CMIP6 models in `oi10` use `noleap`
   (e.g. CESM2) or `360_day` (e.g. UKESM1), which heatwave3 can't read.
+  climdex.pcic reads them, through PCICt.
+  - The slot rule is part of the def, because conventions differ:
+    heatwaveR uses 366 slots with 29 February filled from its
+    neighbours, and climdex.pcic uses 365 slots, with 29 February
+    sharing 28 February's slot, or 360 slots.
+  - So is the season-year label: winter is labelled by its December
+    year in climdex.pcic and by its January year in ClimInd.
 - **baseline**: the expected value per slot. The options are a
   climatology (windowed and smoothed, heatwaveR style), a fixed value, a
   per-season statistic (bloom: the median of that year), a trend-aware or
@@ -211,7 +218,11 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
 - **spell**: an excursion that passes the persistence rules:
   minimum duration (an *opening*), maximum gap joined (a *closing*), the
   **order** of the two, and optionally hysteresis (separate start and end
-  thresholds).
+  thresholds). ETCCDI's GSL is the standard example of the last. It
+  starts with 6 days above 5 °C before July and ends with 6 days below 5
+  °C from 1 July. In the south the year runs from July to June and the
+  split is at 1 January. That's the same shape as ice advance and
+  retreat.
 - **missing data** is a separate policy from sub-threshold gaps, because
   an observation gap isn't a sub-threshold gap. The options are:
   interpolate up to n steps, then count as baseline (heatwaveR); break
@@ -242,8 +253,17 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
     threshold, so their categories aren't Hobday's.
 - **summaries** per season year: spell count, days in spell, days at or
   above each category, first start, last end (ice advance and retreat
-  are summaries, not new algorithms), maximum intensity and the highest
-  category.
+  are summaries, not new algorithms), the longest spell, maximum
+  intensity and the highest category.
+  - **How a spell that crosses the season-year boundary is assigned** is
+    part of the def. The survey found four rules:
+    - by start (heatwaveR, heatwave3);
+    - by end (climdex.pcic's CDD/CWD);
+    - days split by year (WSDI with `spells.can.span.years`);
+    - cut at the boundary, with each piece having to pass the minimum
+      (WSDI's default, from fclimdex).
+
+    Counts and durations change with the rule.
 
 **Default semantics are clean rules. heatwaveR matching is an option**
 (`parity = "heatwaveR-<version>"`, below). Clean means:
@@ -338,7 +358,19 @@ st <- spell_state(...); spell_step(st, x_today, b, def)   # streaming
   - `schlegel2021` (cold spells): parity, as for Hobday.
   - `massom2013`: trend.ice's current COGs, exactly.
   - `siegel2002`: published bloom timing.
-  - ETCCDI WSDI/CSDI: climdex.pcic.
+  - ETCCDI WSDI/CSDI: climdex.pcic. It's off CRAN (archived 2023, with
+    PCICt archived 2025), so store its outputs. The parity switch needs:
+    - 365 slots and a 5-day window that wraps within the year;
+    - type-8 quantiles, with no smoothing;
+    - out-of-base thresholds in every year (the in-base bootstrap is
+      only for the percentage indices);
+    - strict comparisons, a minimum of 6 and no gap joining;
+    - missing days that break the run;
+    - the year cut by default;
+    - the annual NA rule (more than 15 missing days, or any month with
+      more than 3).
+
+    ClimInd's WSDI isn't ETCCDI's, so it isn't an oracle.
 - **Batch and streaming agree**: the online `state + step` form must
   reproduce the batch mask except for a declared **provisional tail**
   (about `max(min_duration, max_gap + 1)` steps), the same idea as
@@ -609,7 +641,8 @@ Packages to cover:
   under embargo) and `ocetrac.md` (from the source, not run).*
 - R:
   - heatwaveR (+ RmarineHeatWaves, archived)
-  - climdex.pcic, ClimInd
+  - climdex.pcic, ClimInd *(done 2026-11-17 from the source, not run:
+    `climdex.pcic.md`, `climind.md`)*
   - lfstat, SPEI, SCI
   - hydroEvents, EflowStats
   - extRemes, evd, POT (runs declustering)
