@@ -182,7 +182,8 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
     heatwaveR uses 366 slots with 29 February filled from its
     neighbours, and climdex.pcic uses 365 slots, with 29 February
     sharing 28 February's slot, or 360 slots. EflowStats 5 drops 29
-    February, where HIT dropped day 366.
+    February, where HIT and extRemes' HWMId drop day 366 (31
+    December).
   - So is the season-year label: winter is labelled by its December
     year in climdex.pcic and by its January year in ClimInd. lfstat
     makes it explicit for hydrological years: `assign = "majority"`,
@@ -223,6 +224,10 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
       is a threshold that varies along one continuous series. Where the
       window steps at the new year, the threshold steps too, but spells
       run across it rather than restarting.
+  - Where the window reaches past the ends of the reference period, the
+    def says what fills it: data from the adjacent years (heatwaveR
+    1.0.0; HWMId needs a padding year either side), a wrap within the
+    year (heatwaveR 0.5.5, climdex.pcic), or a shorter window.
   - For comparisons, use a fixed baseline on an earlier work's period,
     with detrended or shifting results as best and worst cases.
   - The choice matters most for long records and for projections (Amaya
@@ -248,16 +253,23 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
   °C from 1 July. In the south the year runs from July to June and the
   split is at 1 January. That's the same shape as ice advance and
   retreat.
-  - **Closings differ** (lfstat, see the survey):
+  - **Closings differ** (lfstat and evd, see the survey):
     - inter-event time only (`maxGap`; lfstat's IT);
     - time and a magnitude condition (IC: the excess between events,
       relative to the deficit so far);
     - smoothing and detecting again (MA);
     - a storage rule (sequent peak: the spell lasts until its cumulative
-      deficit is repaid).
+      deficit is repaid);
+    - a lower threshold: a gap is joined unless the series falls to a
+      lower level for `rlow` steps (evd's `ulow`; with a long gap
+      allowance, that's hysteresis).
 
     The def names the closing and its parameters. lfstat joins first and
-    drops minor events after, the reverse of Hobday's order.
+    drops minor events after, the reverse of Hobday's order. A closing
+    estimated from the data (intervals declustering, POT's `fitexi()`)
+    is fitted once and stored in the def, like a baseline. Gaps count
+    steps; for irregular series the def could give a duration instead
+    (POT's `tim.cond`).
   - **A minimum on the peak** is another opening: detect at one level
     and keep the spells whose peak reaches another (hydroEvents'
     `eventMaxima()`). Unlike hysteresis, the start and end stay at the
@@ -269,7 +281,9 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
 - **missing data** is a separate policy from sub-threshold gaps, because
   an observation gap isn't a sub-threshold gap. The options are:
   interpolate up to n steps, then count as baseline (heatwaveR); break
-  the spell; or refuse the season (trend.ice).
+  the spell; or refuse the season (trend.ice). Deleting missing steps
+  and closing up the series (extRemes with `na.omit`) isn't an option:
+  the gap then neither breaks nor counts.
 - **censoring**: a spell that touches the start or end of the series,
   or a missing run it can't cross, is flagged as left- or right-censored
   instead of being silently cut short. These are the same flags as
@@ -290,7 +304,9 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
   - Duration counts the joined gaps, so spells also report the steps
     actually beyond the threshold (lfstat's `dbt`). Cumulative intensity
     comes two ways too: with the joined gaps counted, as heatwaveR does,
-    and beyond the threshold only (lfstat's `vbt`).
+    and beyond the threshold only (lfstat's `vbt`). Declustering splits
+    the same way: extRemes' clusters hold only the exceedances, evd's
+    and POT's the whole span.
   - Categories are Hobday 2018 multiples of threshold minus baseline,
     computed per step. The rule is part of the def: floor of the
     multiple, with event days below 1x counted as I. That's what
@@ -299,10 +315,16 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
     detection threshold. The Hobday presets fix it at p90 minus the
     baseline. MHW-MAD's 95th and 99th percentile products use their own
     threshold, so their categories aren't Hobday's.
+  - More generally, a metric can have its own origin and unit, fitted
+    on the reference period and stored with the baseline. HWMId
+    measures each day from the 25th percentile of the annual maxima, in
+    units of their interquartile range.
 - **summaries** per season year: spell count, days in spell, days at or
   above each category, first start, last end (ice advance and retreat
   are summaries, not new algorithms), the longest spell, maximum
-  intensity and the highest category.
+  intensity and the highest category. A summary can also pick one spell
+  by a metric and report its other metrics: HWMId's yearly value is the
+  largest heatwave, with its duration and start.
   - **How a spell that crosses the season-year boundary is assigned** is
     part of the def. The survey found five rules:
     - by start (heatwaveR, heatwave3);
@@ -426,6 +448,12 @@ st <- spell_state(...); spell_step(st, x_today, b, def)   # streaming
       more than 3).
 
     ClimInd's WSDI isn't ETCCDI's, so it isn't an oracle.
+  - A `russo2015` (HWMId) preset, if wanted: `extRemes::hwmid()`, with
+    its quirks as the parity switch (31 December dropped in leap years,
+    heatwaves cut at 1 January, the whole year, type-8 quantiles over a
+    31-day window).
+  - Runs declustering: extRemes' `decluster()` and evd's `clusters()`,
+    as spells with no minimum and `max_gap = r - 1`.
 - **Batch and streaming agree**: the online `state + step` form must
   reproduce the batch mask except for a declared **provisional tail**
   (about `max(min_duration, max_gap + 1)` steps), the same idea as
@@ -702,7 +730,8 @@ Packages to cover:
     `lfstat.md`, `spei-sci.md`)*
   - hydroEvents, EflowStats *(done 2026-11-18 from the source, not run:
     `hydroEvents.md`, `eflowstats.md`)*
-  - extRemes, evd, POT (runs declustering)
+  - extRemes, evd, POT (runs declustering) *(done 2026-11-18 from the
+    source, not run: `declustering.md`, `hwmi.md`)*
   - anomaly (CAPA)
   - iglu
   - land phenology (e.g. phenofit)

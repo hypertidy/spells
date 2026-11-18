@@ -23,7 +23,8 @@ the source or from running the code.
 | SPEI 1.8.1, SCI 1.0-3 | source read 2026-11-17, not run | [spei-sci.md](spei-sci.md) |
 | hydroEvents 0.13.0 | source read 2026-11-18, not run | [hydroEvents.md](hydroEvents.md) |
 | EflowStats 5.2.0 | source read 2026-11-18, not run | [eflowstats.md](eflowstats.md) |
-| extRemes, evd, POT | to do | |
+| extRemes 2.2-1 | source read 2026-11-18, not run | [declustering.md](declustering.md), [hwmi.md](hwmi.md) |
+| evd 2.3-7.1, POT 1.1-12 | source read 2026-11-18, not run | [declustering.md](declustering.md) |
 | anomaly (CAPA) | to do | |
 | iglu | to do | |
 | phenofit (land phenology) | to do | |
@@ -152,6 +153,30 @@ the source or from running the code.
     calendar year with most of the months, where before it was always
     the end year. HIT and EflowStats before 5.0 dropped day 366 in leap
     years, not 29 February.
+28. **Runs declustering is a spell with no minimum**, and gaps of up to
+    `r − 1` steps joined (extRemes, evd). extRemes counts only the
+    exceedances in a cluster, where evd and POT include the joined
+    steps.
+29. **evd's lower threshold is a closing with magnitude in it:** a
+    cluster also ends after `rlow` steps at or below `ulow`. With a long
+    `r`, that's hysteresis.
+30. **Read from the code, to confirm by running:**
+    - extRemes' intervals declustering estimates a run length but
+      declusters with `r = 1`;
+    - POT measures its time condition from the cluster's running
+      maximum, started on the step after the first exceedance, not from
+      the last exceedance as documented;
+    - POT's intervals estimator has its two cases the other way round
+      from evd's and extRemes'.
+31. **Estimated closings are data-set-relative** (intervals
+    declustering, POT's `fitexi()`). Spells can offer them as fitted
+    once and stored in the def, like a baseline.
+32. **extRemes carries HWMId** (Russo et al. 2015), a candidate preset.
+    Its magnitude has its own origin and unit (the 25th percentile and
+    interquartile range of the reference period's annual maxima), its
+    yearly summary is the largest heatwave with its duration and start,
+    it drops 31 December in leap years, and it cuts heatwaves at
+    1 January.
 
 Findings 2 to 5 were confirmed by running (`checks/heatwave3.R`, output
 in `checks/heatwave3.out`). The details are in heatwave3.md, "Checked by
