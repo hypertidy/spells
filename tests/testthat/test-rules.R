@@ -37,12 +37,11 @@ test_that("category rules", {
 test_that("definitions refuse what isn't implemented", {
   ref <- c("1982-01-01", "2011-12-31")
   expect_error(hobday2016(ref), "clean rules")
-  expect_error(hobday2016(ref, parity = "heatwave3-1.5.0"), "isn't implemented yet")
   expect_error(hobday2016(ref, parity = "heatwaveR-9"), "unknown parity mode")
   expect_error(hobday2016(c("1982-02-01", "2011-12-31"), parity = "heatwaveR-0.5.5"), "whole years")
   expect_s3_class(hobday2016(ref, parity = "heatwaveR-0.5.5"), "spell_def")
   pm <- parity_modes()
-  expect_identical(pm$parity[pm$implemented], c("heatwaveR-0.5.5", "heatwaveR-1.0.0"))
+  expect_identical(pm$parity[pm$implemented], c("heatwaveR-0.5.5", "heatwaveR-1.0.0", "heatwave3-1.5.0"))
 })
 
 test_that("inputs are checked", {
@@ -54,4 +53,65 @@ test_that("inputs are checked", {
   expect_error(spell_baseline(k$x[late, ], k$dates[late], def), "reference period")
   b <- spell_baseline(k$x, k$dates, def)
   expect_error(spell_mask(cbind(k$x, k$x), k$dates, b), "series")
+})
+
+test_that("spell_events: edges, step counts and the empty case", {
+  ## a flat baseline 0, threshold 1: spells at both ends of the series,
+  ## one with a joined gap and a missing step
+  def <- hobday2016(c("2001-01-01", "2001-12-31"), parity = "heatwaveR-1.0.0")
+  time <- seq(as.Date("2001-01-01"), by = "day", length.out = 365)
+  b <- structure(list(def = def, seas = matrix(0, 366, 1), thresh = matrix(1, 366, 1)),
+                 class = "spell_baseline")
+  x <- rep(0, 365)
+  x[1:6] <- c(3, 2, 2, 2, 2, 2)                 # from the first step
+  x[100:112] <- c(2, 2, 4, 2, 2, 0.5, NA, 2, 2, 2, 2, 2, 2)   # a 2-step gap, one missing
+  x[361:365] <- 2                               # to the last step
+  m <- spell_mask(x, time, b)
+  ev <- spell_events(x, time, b, m)
+  expect_identical(nrow(ev), 3L)
+  expect_identical(ev$duration, c(6L, 13L, 5L))
+  expect_identical(ev$n_beyond, c(6L, 11L, 5L))
+  expect_identical(ev$n_missing, c(0L, 1L, 0L))
+  expect_identical(ev$cut_start, c(TRUE, FALSE, FALSE))
+  expect_identical(ev$cut_end, c(FALSE, FALSE, TRUE))
+  expect_identical(ev$index_peak, c(1L, 102L, 361L))
+  ## no rate on a side cut by the series' end
+  expect_true(is.na(ev$rate_onset[1]) && !is.na(ev$rate_decline[1]))
+  expect_true(!is.na(ev$rate_onset[3]) && is.na(ev$rate_decline[3]))
+  ## onset from the midpoint of the step before and the first step
+  expect_equal(ev$rate_onset[2], round((4 - 0.5 * (2 + 0)) / (2 + 0.5), 4))
+  expect_equal(ev$intensity_cumulative[2], sum(c(2, 2, 4, 2, 2, 0.5, 0, 2, 2, 2, 2, 2, 2)))
+  ## a missing step outside the spell: heatwaveR counts it as the
+  ## baseline, heatwave3 gives no rate
+  x2 <- x; x2[99] <- NA
+  expect_false(is.na(spell_events(x2, time, b, spell_mask(x2, time, b))$rate_onset[2]))
+  b3 <- b; b3$def <- hobday2016(def$reference, parity = "heatwave3-1.5.0")
+  expect_true(is.na(spell_events(x2, time, b3, spell_mask(x2, time, b3))$rate_onset[2]))
+  ## no spells: no rows, the same columns
+  z <- spell_events(rep(0, 365), time, b, spell_mask(rep(0, 365), time, b))
+  expect_identical(nrow(z), 0L)
+  expect_identical(names(z), names(ev))
+  expect_error(spell_events(x[-1], time[-1], b, m), "spell_mask")
+})
+
+test_that("event category rules", {
+  def <- hobday2016(c("2001-01-01", "2001-12-31"), parity = "heatwaveR-1.0.0")
+  time <- seq(as.Date("2001-01-01"), by = "day", length.out = 365)
+  b <- structure(list(def = def, seas = matrix(0, 366, 1), thresh = matrix(1, 366, 1)),
+                 class = "spell_baseline")
+  x <- rep(0, 365)
+  x[10:259] <- 1.5; x[100] <- 4.5               # 250 steps in I, one in IV
+  x[300:309] <- 1.5; x[305] <- 2                # one step exactly on the II level
+  m <- spell_mask(x, time, b)
+  ev <- spell_events(x, time, b, m)
+  ## heatwaveR: the highest category whose rounded share is above zero,
+  ## counting steps at or above each level
+  expect_identical(ev$category, c(1L, 2L))
+  expect_identical(ev$n_extreme, c(1L, 0L))
+  expect_identical(ev$n_strong, c(0L, 1L))
+  ## the highest daily category
+  b$def$category <- categories(">", 4, "none", event = "max")
+  ev <- spell_events(x, time, b, m)
+  expect_identical(ev$category, c(4L, 1L))
+  expect_identical(ev$n_strong, c(0L, 0L))
 })

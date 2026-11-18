@@ -104,7 +104,9 @@ events, never before the first or after the last. There's no hysteresis.
     intensity is 0.
 - **No censoring flags.** An event that touches either end of the series
   is reported as if complete. `rate_onset` and `rate_decline` are NA at
-  the edges.
+  the edges, and also when the day just outside the event is missing,
+  where heatwaveR counts that day as `seas` (`src/event_detect.cpp`;
+  spells' `rate_neighbour` rule).
 
 **Time step.** Daily only:
 
@@ -142,8 +144,10 @@ intensities and rates are negative. Everything is rounded to `roundRes`
 4)` for k = 1, 2, 3, each level rounded to 4 decimals and built
 cumulatively. Three outputs use them:
 
-- **Per event:** the share of days in each band (`p_moderate` and the
-  rest), and the category of the highest band any day reaches.
+- **Per event:** the share of days at or above each band and below the
+  next (`p_moderate` and the rest), rounded to a whole percent, and the
+  highest band whose share is above zero, as heatwaveR's `category()`.
+  So a long event with one day in a band gets the band below.
 - **Per day:** on event days only (`category_daily3()`, or the daily file
   of `detect_event3()`).
 - **Ice, for cold spells only:** an event day whose threshold is below
@@ -310,6 +314,12 @@ items marked † are new or sharper than the brief:
    spell mask, not agreement with `detect_blob3()`.
 
 ## Checked by running
+
+*Since 2026-11-18, spells' `heatwave3-1.5.0` parity mode reproduces
+heatwave3's climatology, event days, daily categories, event metrics
+and event categories (`detect3(category = TRUE)`) on stored outputs
+(`tests/testthat/test-parity.R`), including a series with gaps in the
+climatology period, where it differs from heatwaveR.*
 
 `checks/heatwave3.R`, on 2026-11-17, with heatwave3 1.5.0, heatwaveR
 1.0.0 (in a library of its own) and heatwaveR 0.5.5, all on `sst_WA`

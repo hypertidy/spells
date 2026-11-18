@@ -58,9 +58,29 @@ the heatwave3 package.
   `category(climatology = TRUE)` is strict (`>`), against levels built
   as `diff = round(thresh - seas, 4)`, `thresh_2x = round(thresh +
   diff, 4)`, and so on up to 4x. Joined gap days below the threshold,
-  and missing days, get no category. Checked for 0.5.5: spells' parity
-  mode reproduces it on every case of its parity tests
-  (`tests/testthat/test-parity-heatwaveR.R`).
+  and missing days, get no category. spells' parity modes reproduce it
+  on every case of their parity tests (`tests/testthat/test-parity.R`).
+- **Event metrics** are the same code in both (`detect_event()` differs
+  only in how it merges `category()`'s table). Every day of the
+  event is measured after the missing-day fill, joined gaps included;
+  the peak is the first day of largest anomaly; the "var" columns are
+  standard deviations; the intensities and rates are rounded to 4.
+  The onset rate is `(intensity_max - 0.5 * (A + B - C)) / (days to
+  peak + 0.5)`, with A the first day's anomaly and B and C the day
+  before's temperature and `seas`, after the fill: a missing day before
+  the event counts as `seas`. It's NA when the event starts on the
+  series' first day; the decline rate is the same at the end.
+- **The event category is a rounded share.** `category()` counts each
+  event's days at or above each level (`>=`), takes each band's share
+  of the duration rounded to a whole percent (`p_moderate` and the
+  rest), and gives the highest band whose share is above zero. A long
+  event with one day in a band gets the band below: on spells' test
+  case `wa_levels`, a 250-day event with one day in IV is I. The
+  comparison is against the temperature as given: `category()` on
+  `detect_event()`'s result doesn't round it, though `detect_event(
+  categories = TRUE)` passes it rounded to `roundRes` *(from the source,
+  not run)*. Event names and seasons are labels; spells doesn't
+  reproduce them.
 - **Climatology length:** at least 1095 days, and the period must lie
   inside the data. Otherwise `ts2clm()` stops with an error.
 
@@ -80,11 +100,17 @@ comparison adds two items to it (marked †):
 | `seas`/`thresh` rounding | 4 | 4 | 4 |
 | Feb 29 fill | `round(mean, 2)` | `round(mean, 2)` | `round(mean, 2)` |
 | Moderate category | `>=` | `>=` | `>=` |
+| event category | rounded share, `>=` | rounded share, `>=` | rounded share, `>=` |
+| rate when the day outside the event is missing | that day is `seas` | that day is `seas` | no rate |
 
-Both heatwaveR columns are now spells parity modes, reproduced on
-stored outputs (`tests/testthat/test-parity-heatwaveR.R`): on gap-free
-reference periods, the window and trailing-gap rows are the only
-differences between them.
+All three columns are now spells parity modes, reproduced on stored
+outputs (`tests/testthat/test-parity.R`). On gap-free reference periods,
+the window and trailing-gap rows are the only differences between the
+heatwaveR versions, and heatwave3 equals 1.0.0. With gaps in the
+reference period, the climatology-fill row separates heatwave3 from
+both heatwaveR versions; so does the rate row, wherever a missing day
+sits just before or after an event. The `maxPadLength` row isn't a mode switch:
+it's off by default in all three.
 
 trend.sst `R/mhw.R` wraps within the year (its header and the `pad`
 index in `mhw_clim()`), as 0.5.5 does. It also stops on any missing

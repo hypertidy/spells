@@ -46,9 +46,11 @@ upto <- function(end) dates <= as.Date(end)
 na_at <- function(x, from, to) {
   x[dates >= as.Date(from) & dates <= as.Date(to)] <- NA; x
 }
-## NA runs only after the reference period: R/mhw.R (and so the 0.5.5
-## parity engine) stops on a gap inside it. Event dates are 0.5.5's on
-## sst_WA with ref_hw.
+## NA runs after the reference period (wa_gaps) and inside it
+## (wa_refgaps, where heatwaveR fills each missing day from that slot's
+## mean across the years and heatwave3 leaves it out of the window).
+## trend.sst's R/mhw.R stops on a gap inside the reference period.
+## Event dates are 0.5.5's on sst_WA with ref_hw.
 wa_gaps <- oisst[, "WA"]
 wa_gaps <- na_at(wa_gaps, "2012-02-15", "2012-02-15")   # 1 day inside a 101-day event
 wa_gaps <- na_at(wa_gaps, "2015-09-28", "2015-09-30")   # first 3 days of a 7-day event
@@ -56,6 +58,53 @@ wa_gaps <- na_at(wa_gaps, "2016-06-01", "2016-06-15")   # 15 days, no event near
 wa_gaps <- na_at(wa_gaps, "2020-10-01", "2020-10-02")   # 2 days inside a 21-day event
 wa_gaps <- na_at(wa_gaps, "2022-03-01", "2022-03-10")   # 10 days inside a 58-day event
 wa_gaps <- na_at(wa_gaps, "2022-12-30", "2022-12-31")   # the last 2 days
+wa_refgaps <- oisst[, "WA"]
+wa_refgaps <- na_at(wa_refgaps, "1982-01-01", "1982-01-04") # the first days: the shortened windows' edge
+wa_refgaps <- na_at(wa_refgaps, "1988-02-28", "1988-03-01") # a leap year's 29 February and both neighbours
+wa_refgaps <- na_at(wa_refgaps, "1990-02-28", "1990-02-28") # a non-leap year's 28 February: slot 60 from 1 March alone
+wa_refgaps <- na_at(wa_refgaps, "1995-06-01", "1995-07-15") # 45 days
+wa_refgaps <- na_at(wa_refgaps, "2011-12-25", "2011-12-31") # the reference period's last week
+
+## wa_levels: sst_WA with three stretches after the reference period set
+## from heatwaveR 0.5.5's own climatology (mid-year, where 0.5.5's and
+## 1.0.0's agree), to tell the category rules apart. Each is in category
+## I (1.5 x the threshold's distance from the baseline, to 2 decimals)
+## between 3 days at the baseline, except for:
+##  - 250 days with one day in IV: heatwaveR's event category is the
+##    highest whose share of days, rounded to a whole percent, is above
+##    zero, so I;
+##  - 10 days with one day exactly on the II level: at or above it
+##    (heatwaveR's event share) but not above it (its daily category);
+##  - 10 days with days 0.00003 above the threshold and the II level and
+##    0.00003 below the III level: heatwaveR's category() rounds the
+##    value to 4 decimals before comparing, heatwave3 doesn't.
+clim055 <- callr::r(function(t, temp, ref) {
+  heatwaveR::ts2clm(data.frame(t = t, temp = temp), climatologyPeriod = ref)
+}, args = list(dates, oisst[, "WA"], ref_hw), libpath = unique(c(lib055, .libPaths())))
+stopifnot(identical(as.numeric(clim055$t), as.numeric(dates)))
+lv <- with(clim055, {
+  d <- round(thresh - seas, 4)
+  l2 <- round(thresh + d, 4); l3 <- round(l2 + d, 4)
+  list(seas = seas, d = thresh - seas, l1 = thresh, l2 = l2, l3 = l3)
+})
+stretch <- function(x, from, n, at = list()) {
+  i <- which(dates == as.Date(from)) + seq_len(n) - 1L
+  edge <- c(i[1] - 3:1, i[n] + 1:3)
+  x[edge] <- lv$seas[edge]
+  x[i] <- round(lv$seas[i] + 1.5 * lv$d[i], 2)
+  for (k in names(at)) {
+    j <- i[as.integer(k)]
+    x[j] <- at[[k]](j)
+  }
+  x
+}
+wa_levels <- oisst[, "WA"]
+wa_levels <- stretch(wa_levels, "2013-03-01", 250,
+                     list("125" = function(j) round(lv$seas[j] + 4.5 * lv$d[j], 2)))
+wa_levels <- stretch(wa_levels, "2014-05-01", 10, list("5" = function(j) lv$l2[j]))
+wa_levels <- stretch(wa_levels, "2015-05-01", 10,
+                     list("2" = function(j) lv$l1[j] + 3e-5, "4" = function(j) lv$l2[j] + 3e-5,
+                          "7" = function(j) lv$l3[j] - 3e-5))
 
 case <- function(x, keep = rep(TRUE, length(dates)), reference = ref_hw,
                  detect_from = NULL, note) {
@@ -75,7 +124,9 @@ cases <- list(
   wa_midevent = case(oisst[, "WA", drop = FALSE], upto("2022-04-01"),
                      note = "ends inside an event (2022-02-14 to 04-12)"),
   wa_lead = case(oisst[, "WA", drop = FALSE], detect_from = "2012-01-08",
-                 note = "baseline from the whole series; detection on the series from 2012-01-08, 2 days before an event (2012-01-10 to 04-19)")
+                 note = "baseline from the whole series; detection on the series from 2012-01-08, 2 days before an event (2012-01-10 to 04-19)"),
+  wa_refgaps = case(wa_refgaps, note = "NA runs inside the reference period: its first days, a leap year's 28 Feb to 1 Mar, a non-leap 28 Feb, 45 days, its last week"),
+  wa_levels = case(wa_levels, note = "stretches set on the category levels: a 250-day spell with one day in IV, a day exactly on the II level, days 0.00003 either side of a level")
 )
 
 ## --- heatwaveR, one process per version -----------------------------------
@@ -115,19 +166,30 @@ write_nc <- function(path, dates, x) {
   ncdf4::nc_close(nc)
   path
 }
+## detect3() fits and detects in one call, with its event categories. For a detection window cut
+## from a longer series (wa_lead), detect_event3() reads the stored
+## climatology and only the window's dates (time_range).
 run_heatwave3 <- function(cs) {
-  one <- function(dates, temp, reference) {
+  one <- function(dates, temp, reference, detect_from) {
     stem <- tempfile(tmpdir = work)
     path <- write_nc(paste0(stem, "_in.nc"), dates, temp)
-    detect3(path, name = stem, climatologyPeriod = format(reference), quiet = TRUE)
+    detect3(path, name = stem, climatologyPeriod = format(reference), category = TRUE,
+            daily = "also", quiet = TRUE)
+    if (!is.null(detect_from)) {
+      stem2 <- paste0(stem, "_window")
+      detect_event3(path, name = stem2, clim_file = paste0(stem, "_clim.nc"),
+                    time_range = format(c(detect_from, max(dates))), category = TRUE,
+                    daily = "also", quiet = TRUE)
+    } else stem2 <- stem
     cd <- heatwave3:::hw3_read_clim_nc(paste0(stem, "_clim.nc"))
+    dd <- as.data.frame(hw3_export(paste0(stem2, "_events_daily.nc")))
     list(clim = data.frame(doy = 1:366, seas = cd$seas[1:366], thresh = cd$thresh[1:366]),
-         events = as.data.frame(hw3_export(paste0(stem, "_events.nc"))))
+         day = data.frame(t = as.Date(dd$t), event = dd$event, event_no = dd$event_no,
+                          category = dd$category),
+         events = as.data.frame(hw3_export(paste0(stem2, "_events.nc"))))
   }
-  ## heatwave3 fits and detects in one call, so it has no answer for a
-  ## detection window cut from a longer series (wa_lead)
-  lapply(cs, function(k) if (is.null(k$detect_from))
-    lapply(seq_len(ncol(k$x)), function(j) one(k$dates, k$x[, j], k$reference)))
+  lapply(cs, function(k) lapply(seq_len(ncol(k$x)), function(j)
+    one(k$dates, k$x[, j], k$reference, k$detect_from)))
 }
 
 ## --- trend.sst's R/mhw.R ----------------------------------------------------
@@ -135,6 +197,8 @@ run_trend_sst <- function(cs, root) {
   env <- new.env()
   sys.source(file.path(root, "R", "mhw.R"), envir = env)
   lapply(cs, function(k) {
+    inb <- k$dates >= k$reference[1] & k$dates <= k$reference[2]
+    if (anyNA(k$x[inb, ])) return(NULL)     # mhw_clim() stops: nothing to store
     clim <- env$mhw_clim(k$x, k$dates, k$reference)
     keep <- if (is.null(k$detect_from)) rep(TRUE, length(k$dates)) else k$dates >= k$detect_from
     det <- env$mhw_detect(k$x[keep, , drop = FALSE], k$dates[keep], clim)
@@ -153,6 +217,10 @@ meta <- function(engine, version, source) {
 h055 <- run_heatwaveR(lib055, cases)
 h100 <- run_heatwaveR(lib100, cases)
 stopifnot(h055$version == "0.5.5", h100$version == "1.0.0")
+## wa_levels' stretches are where 0.5.5's and 1.0.0's climatologies agree
+at <- unique(clim055$doy[cases$wa_levels$x[, 1] != oisst[, "WA"]])
+clim_at <- function(h) with(h$cases$wa_levels[[1]]$clim, cbind(seas, thresh)[match(at, doy), ])
+stopifnot(identical(clim_at(h055), clim_at(h100)))
 h3 <- run_heatwave3(cases)
 ts <- run_trend_sst(cases, tsst)
 

@@ -6,6 +6,7 @@ cases <- fixture("cases.rds")
 run_case <- function(k, def) {
   b <- spell_baseline(k$x, k$dates, def)
   keep <- if (is.null(k$detect_from)) rep(TRUE, length(k$dates)) else k$dates >= k$detect_from
-  list(baseline = b, mask = spell_mask(k$x[keep, , drop = FALSE], k$dates[keep], b),
-       t = k$dates[keep])
+  x <- k$x[keep, , drop = FALSE]
+  m <- spell_mask(x, k$dates[keep], b)
+  list(baseline = b, mask = m, t = k$dates[keep], events = spell_events(x, k$dates[keep], b, m))
 }

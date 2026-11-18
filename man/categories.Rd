@@ -4,7 +4,13 @@
 \alias{categories}
 \title{Category rules}
 \usage{
-categories(compare = c(">=", ">"), round = NULL, gap_days = c("I", "none"))
+categories(
+  compare = c(">=", ">"),
+  round = NULL,
+  gap_days = c("I", "none"),
+  event = c("max", "share"),
+  event_compare = c(">=", ">")
+)
 }
 \arguments{
 \item{compare}{\code{">="}: category k when the anomaly is at least k
@@ -20,6 +26,17 @@ it is built, or \code{NULL} for none. heatwaveR rounds to 4.}
 the threshold (a joined gap day, or a missing step counted as
 baseline): \code{"I"}, as trend.sst does, or \code{"none"} (category 0), as
 heatwaveR, marineHeatWaves and xmhw do.}
+
+\item{event}{A spell's category, in \code{\link[=spell_events]{spell_events()}}: \code{"max"}, the
+highest category of its steps; or \code{"share"}, the highest category
+whose share of the spell's steps, rounded to a whole percent, is
+above zero (heatwaveR's and heatwave3's event category). With
+\code{"share"}, a long spell with one step in a category can be given the
+category below.}
+
+\item{event_compare}{For \code{event = "share"}: how each step is compared
+with the levels, \code{">="} (heatwaveR's \code{category()}, though its daily
+categories use \code{">"}) or \code{">"}.}
 }
 \value{
 A \code{spell_categories} rule.

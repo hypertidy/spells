@@ -7,14 +7,15 @@
 #' a 31-day running mean, the 90th percentile as the threshold, at least
 #' 5 days above it, and gaps of 2 days or fewer joined.
 #'
-#' Only the heatwaveR parity modes are implemented so far. The clean
+#' Only the parity modes are implemented so far. The clean
 #' rules (spells' own defaults) come once their open choices are settled;
 #' until then `parity` must be given.
 #'
 #' @param reference The reference period: two dates, the first and last
 #'   day. It must be whole years.
 #' @param parity The engine and version whose behaviour to reproduce:
-#'   `"heatwaveR-0.5.5"` or `"heatwaveR-1.0.0"`. See [parity_modes()].
+#'   `"heatwaveR-0.5.5"`, `"heatwaveR-1.0.0"` or `"heatwave3-1.5.0"`.
+#'   See [parity_modes()].
 #' @param category How each step in a spell gets its category, from
 #'   [categories()]. The default is the parity mode's own rule.
 #' @return A `spell_def`.
@@ -70,17 +71,30 @@ hobday2016 <- function(reference, parity = NULL, category = NULL) {
 #'   the threshold (a joined gap day, or a missing step counted as
 #'   baseline): `"I"`, as trend.sst does, or `"none"` (category 0), as
 #'   heatwaveR, marineHeatWaves and xmhw do.
+#' @param event A spell's category, in [spell_events()]: `"max"`, the
+#'   highest category of its steps; or `"share"`, the highest category
+#'   whose share of the spell's steps, rounded to a whole percent, is
+#'   above zero (heatwaveR's and heatwave3's event category). With
+#'   `"share"`, a long spell with one step in a category can be given the
+#'   category below.
+#' @param event_compare For `event = "share"`: how each step is compared
+#'   with the levels, `">="` (heatwaveR's `category()`, though its daily
+#'   categories use `">"`) or `">"`.
 #' @return A `spell_categories` rule.
 #' @export
 #' @examples
 #' categories()                                         # trend.sst
 #' categories(compare = ">", round = 4, gap_days = "none") # heatwaveR's daily categories
-categories <- function(compare = c(">=", ">"), round = NULL, gap_days = c("I", "none")) {
+categories <- function(compare = c(">=", ">"), round = NULL, gap_days = c("I", "none"),
+                       event = c("max", "share"), event_compare = c(">=", ">")) {
   compare <- match.arg(compare)
   gap_days <- match.arg(gap_days)
+  event <- match.arg(event)
+  event_compare <- match.arg(event_compare)
   if (!is.null(round)) round <- as.integer(round)
   structure(list(unit = "threshold", max = 4L, compare = compare, round = round,
-                 gap_days = gap_days), class = "spell_categories")
+                 gap_days = gap_days, event = event, event_compare = event_compare),
+            class = "spell_categories")
 }
 
 ## The parity modes. Each names an engine and version and lists the
@@ -92,12 +106,15 @@ parity_registry <- list(
       window_ends = "wrap",     # the climatology window wraps within each year
       feb29 = "neighbours",     # non-leap years: slot 60 = round(mean(slot 59, 61), 2)
       round = 4L,               # seas and thresh rounded after smoothing
-      reference_missing = "stop", # R/mhw.R stops; heatwaveR fills from the slot's mean
+      reference_missing = "plug", # a missing cell gets its slot's mean across the years
       missing = "baseline",     # a missing step is set to the baseline: never beyond it
       leading_gap = FALSE,      # a gap before the first spell is not joined
-      trailing_gap = TRUE       # a gap of max_gap or fewer at the series end is joined
+      trailing_gap = TRUE,      # a gap of max_gap or fewer at the series end is joined
+      rate_neighbour = "filled" # a rate's step outside the spell, if missing, is the baseline
     ),
-    category = categories(compare = ">", round = 4L, gap_days = "none")
+    ## daily categories strict (">"); the event's by rounded share, at or above (">=")
+    category = categories(compare = ">", round = 4L, gap_days = "none",
+                          event = "share", event_compare = ">=")
   ),
   ## 1.0.0 (robwschlegel/heatwaveR @e0ae30d): the window runs on through
   ## the adjacent years at the new year, shorter at the reference ends
@@ -107,15 +124,25 @@ parity_registry <- list(
       window_ends = "shorten",
       feb29 = "neighbours",
       round = 4L,
-      reference_missing = "stop",
+      reference_missing = "plug",
       missing = "baseline",
       leading_gap = FALSE,
-      trailing_gap = FALSE
+      trailing_gap = FALSE,
+      rate_neighbour = "filled"
     ),
-    category = categories(compare = ">", round = 4L, gap_days = "none")
+    category = categories(compare = ">", round = 4L, gap_days = "none",
+                          event = "share", event_compare = ">=")
   )
 )
-parity_planned <- c("heatwave3-1.5.0")
+## heatwave3 1.5.0 (robwschlegel/heatwave3 @8aff3e5): heatwaveR 1.0.0's
+## rules, except that a missing reference cell is left out of the window
+## (src/climatology.cpp), and a rate of onset or decline whose step
+## outside the spell is missing isn't given (src/event_detect.cpp). Its
+## default maxPadLength interpolates nothing.
+parity_registry[["heatwave3-1.5.0"]] <- parity_registry[["heatwaveR-1.0.0"]]
+parity_registry[["heatwave3-1.5.0"]]$rules$reference_missing <- "omit"
+parity_registry[["heatwave3-1.5.0"]]$rules$rate_neighbour <- "observed"
+parity_planned <- character()
 
 #' Parity modes
 #'
@@ -162,6 +189,7 @@ print.spell_def <- function(x, ...) {
       paste0("(", x$order, ")"), "\n")
   cg <- x$category
   cat("  category:  compare", cg$compare, "round", if (is.null(cg$round)) "none" else cg$round,
-      "gap days", cg$gap_days, "\n")
+      "gap days", cg$gap_days, "| event", cg$event,
+      if (cg$event == "share") paste0("(", cg$event_compare, ")"), "\n")
   invisible(x)
 }

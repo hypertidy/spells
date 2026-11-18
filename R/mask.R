@@ -70,30 +70,49 @@ spell_runs <- function(exceed, min_duration, max_gap, leading_gap = FALSE, trail
   out
 }
 
-## Category per step, on spell steps only (0 elsewhere). d is the
-## threshold's distance from the baseline, rounded if the rule says so.
-## ">=": the floor of (x - seas) / d, as trend.sst computes it. ">":
-## the highest k with x above the k-th level, where level 1 is thresh
-## and each level is the one below plus d (rounded each time, as
-## heatwaveR's category() builds thresh_2x, _3x and _4x).
+## Category per step, on spell steps only (0 elsewhere). ">=": the
+## floor of (x - seas) / d, where d is the threshold's distance from the
+## baseline, as trend.sst computes it. ">": the highest k with x above
+## the k-th level (category_levels()).
 step_category <- function(x, seas, thresh, ev, rule) {
-  d <- thresh - seas
-  if (!is.null(rule$round)) d <- round(d, rule$round)
   if (rule$compare == ">=") {
+    d <- thresh - seas
+    if (!is.null(rule$round)) d <- round(d, rule$round)
     cat <- pmax(pmin(floor((x - seas) / d), rule$max), 0)   # matrix first: keeps dim
   } else {
-    cat <- matrix(0, nrow(x), ncol(x))
-    level <- thresh
-    for (k in seq_len(rule$max)) {
-      if (k > 1L) {
-        level <- level + d
-        if (!is.null(rule$round)) level <- round(level, rule$round)
-      }
-      cat[x > level] <- k
-    }
+    cat <- level_category(x, category_levels(seas, thresh, rule), ">")
   }
   cat[!ev] <- 0
   if (rule$gap_days == "I") cat[ev & cat == 0] <- 1
   storage.mode(cat) <- "integer"
+  cat
+}
+
+## The category levels: level 1 is the threshold, and each level is the
+## one below plus the threshold's distance from the baseline, d. With a
+## rounding rule, d and each level are rounded as they are built (as
+## heatwaveR's category() builds thresh_2x, _3x and _4x).
+category_levels <- function(seas, thresh, rule) {
+  d <- thresh - seas
+  if (!is.null(rule$round)) d <- round(d, rule$round)
+  lv <- vector("list", rule$max)
+  level <- thresh
+  for (k in seq_len(rule$max)) {
+    if (k > 1L) {
+      level <- level + d
+      if (!is.null(rule$round)) level <- round(level, rule$round)
+    }
+    lv[[k]] <- level
+  }
+  lv
+}
+
+## The highest level each step is above (">") or at or above (">="), 0
+## for none.
+level_category <- function(x, levels, compare) {
+  cat <- matrix(0L, nrow(x), ncol(x))
+  for (k in seq_along(levels)) {
+    cat[if (compare == ">") x > levels[[k]] else x >= levels[[k]]] <- k
+  }
   cat
 }

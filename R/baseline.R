@@ -35,9 +35,10 @@ spell_baseline <- function(x, time, def) {
 }
 
 ## Climatology: the window pooled over the reference years, its mean and
-## percentile, then a running mean over the slots. This is trend.sst's
-## mhw_clim() (heatwaveR 0.5.5 ts2clm() defaults), with the window half
-## width, percentile and smoothing taken from the def.
+## percentile, then a running mean over the slots. This began as
+## trend.sst's mhw_clim() (heatwaveR 0.5.5 ts2clm() defaults); the def
+## gives the window half width, percentile and smoothing, and its parity
+## rules the window ends and the treatment of reference-period gaps.
 clim_window_pooled <- function(x, time, def) {
   rules <- def$rules
   half <- (def$baseline$window - 1L) %/% 2L
@@ -48,9 +49,6 @@ clim_window_pooled <- function(x, time, def) {
   years <- as.integer(format(ref[1], "%Y")):as.integer(format(ref[2], "%Y"))
   slot <- slot_366(time[inb])
   xb <- x[inb, , drop = FALSE]
-  if (anyNA(xb) && identical(rules$reference_missing, "stop")) {
-    stop("missing values in the reference period aren't supported in this parity mode yet")
-  }
   ny <- length(years); np <- ncol(x)
   ## spread to arr[slot, year, series]
   arr <- array(NA_real_, c(366L, ny, np))
@@ -58,14 +56,36 @@ clim_window_pooled <- function(x, time, def) {
     k <- which(yr == years[j])
     arr[slot[k], j, ] <- xb[k, , drop = FALSE]
   }
-  ## 29 February in non-leap years, from its neighbours (heatwaveR's
-  ## .NA2mean on slots 59 to 61, rounded to 2 decimals)
-  f29 <- is.na(arr[60L, , 1L])
-  if (any(f29) && identical(rules$feb29, "neighbours")) {
-    arr[60L, f29, ] <- round((arr[59L, f29, , drop = FALSE] +
-                              arr[61L, f29, , drop = FALSE]) / 2, 2)
+  ## Slot 60 where it's missing (every non-leap year, and a leap year
+  ## whose 29 February is missing), from its neighbours: the mean of 28
+  ## February and 1 March, or the one that's there, rounded to 2 decimals
+  ## (heatwaveR's .NA2mean on slots 59 to 61; heatwave3 the same). With
+  ## neither there, it stays missing.
+  if (identical(rules$feb29, "neighbours")) {
+    v59 <- arr[59L, , , drop = FALSE]; v61 <- arr[61L, , , drop = FALSE]
+    both <- (v59 + v61) / 2
+    fill <- ifelse(is.na(v59), v61, ifelse(is.na(v61), v59, both))
+    f29 <- is.na(arr[60L, , , drop = FALSE])
+    arr[60L, , ][f29] <- round(fill[f29], 2)
   }
-  if (anyNA(arr)) stop("reference years must be whole years")
+  ## Missing (slot, year) cells in the reference period:
+  ##  plug: each is filled with that slot's mean across the years, not
+  ##        rounded (heatwaveR's clim_spread() "plugs")
+  ##  omit: left out of the window (heatwave3)
+  if (anyNA(arr)) {
+    rm_rule <- rules$reference_missing
+    if (identical(rm_rule, "plug")) {
+      for (s in seq_len(np)) {
+        m <- matrix(arr[, , s], 366L)
+        if (!anyNA(m)) next
+        at <- which(is.na(m), arr.ind = TRUE)
+        m[at] <- rowMeans(m, na.rm = TRUE)[at[, 1L]]
+        arr[, , s] <- m
+      }
+    } else if (!identical(rm_rule, "omit")) {
+      stop("unknown reference_missing rule \"", rm_rule, "\"")
+    }
+  }
   ## Pad the slots by the window's half width at each end, so slot i's
   ## window is padded rows i to i + 2 * half.
   ##  wrap:    within each year, 1 January's window takes 27-31 December
@@ -87,7 +107,7 @@ clim_window_pooled <- function(x, time, def) {
       abind_rows(before, arr, after)
     },
     stop("unknown window_ends rule \"", rules$window_ends, "\""))
-  ## where a window is short, the statistics use the values it has
+  ## where a window is short or has gaps, the statistics use the values it has
   short <- anyNA(padded)
   seas <- thresh <- matrix(NA_real_, 366L, np)
   for (i in seq_len(366L)) {

@@ -9,14 +9,15 @@ products.
 
 **Status: early.** The design is in [BRIEF.md](BRIEF.md), and the survey
 of other packages behind it in [inst/survey/](inst/survey/). Phase 1 has
-started with parity: spells reproduces heatwaveR 0.5.5 and 1.0.0, and
-the engine in trend.sst's `R/mhw.R`. spells' own clean rules aren't implemented yet.
+started with parity: spells reproduces heatwaveR 0.5.5 and 1.0.0,
+heatwave3 1.5.0, and the engine in trend.sst's `R/mhw.R`. spells' own clean rules aren't implemented yet.
 
 ```r
 library(spells)
 def <- hobday2016(c("1982-01-01", "2011-12-31"), parity = "heatwaveR-0.5.5")
 b <- spell_baseline(x, time, def)  # x: time x series matrix, or one series
 m <- spell_mask(x, time, b)        # event, category and anomaly per step
+ev <- spell_events(x, time, b, m)  # one row per spell: dates, duration, intensities, rates, category
 ```
 
 ## Parity
@@ -28,9 +29,10 @@ in `tests/testthat/fixtures/`, so the tests need none of them installed.
 
 | mode | status |
 |---|---|
-| `heatwaveR-0.5.5` | implemented: climatology, event days, daily categories |
-| `heatwaveR-1.0.0` | implemented: climatology, event days, daily categories |
-| `heatwave3-1.5.0` | outputs stored, mode planned (heatwave3 is a test oracle only) |
+| `heatwaveR-0.5.5` | implemented: climatology, event days, daily categories, event metrics and categories |
+| `heatwaveR-1.0.0` | implemented: climatology, event days, daily categories, event metrics and categories |
+| `heatwave3-1.5.0` | implemented: climatology, event days, daily categories, event metrics and categories (heatwave3 is a test oracle only, not a dependency) |
 
 The test series are heatwaveR's `sst_WA`, `sst_Med` and `sst_NW_Atl`
-(NOAA OISST v2.1).
+(NOAA OISST v2.1), with gaps, shortened ends and stretches set on the
+category levels to separate the rules.

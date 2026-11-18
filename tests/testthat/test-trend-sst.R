@@ -7,9 +7,10 @@ golden <- fixture("golden-trend.sst.rds")
 for (nm in names(cases)) {
   test_that(paste0("trend.sst R/mhw.R, ", nm), {
     k <- cases[[nm]]
+    g <- golden$cases[[nm]]
+    skip_if(is.null(g), "R/mhw.R stops on a gap in the reference period")
     def <- hobday2016(k$reference, parity = "heatwaveR-0.5.5", category = categories())
     r <- run_case(k, def)
-    g <- golden$cases[[nm]]
     expect_identical(r$baseline$seas, g$seas)
     expect_identical(r$baseline$thresh, g$thresh)
     expect_equal(as.numeric(r$t), as.numeric(g$t))

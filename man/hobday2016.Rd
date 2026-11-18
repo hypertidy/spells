@@ -11,7 +11,8 @@ hobday2016(reference, parity = NULL, category = NULL)
 day. It must be whole years.}
 
 \item{parity}{The engine and version whose behaviour to reproduce:
-\code{"heatwaveR-0.5.5"} or \code{"heatwaveR-1.0.0"}. See \code{\link[=parity_modes]{parity_modes()}}.}
+\code{"heatwaveR-0.5.5"}, \code{"heatwaveR-1.0.0"} or \code{"heatwave3-1.5.0"}.
+See \code{\link[=parity_modes]{parity_modes()}}.}
 
 \item{category}{How each step in a spell gets its category, from
 \code{\link[=categories]{categories()}}. The default is the parity mode's own rule.}
@@ -26,7 +27,7 @@ a 31-day running mean, the 90th percentile as the threshold, at least
 5 days above it, and gaps of 2 days or fewer joined.
 }
 \details{
-Only the heatwaveR parity modes are implemented so far. The clean
+Only the parity modes are implemented so far. The clean
 rules (spells' own defaults) come once their open choices are settled;
 until then \code{parity} must be given.
 }

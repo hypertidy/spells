@@ -373,6 +373,12 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
     (`>`), against levels it builds by adding the rounded distance to
     the threshold and rounding again, where trend.sst takes the floor
     of the ratio (`>=`). spells' `categories()` has both.
+  - A spell's own category is a rule too. heatwaveR and heatwave3 count
+    its days at or above each level (`>=`, though their daily
+    categories use `>`) and give the highest category whose share of
+    the duration, rounded to a whole percent, is above zero: a 250-day
+    event with one day in IV is I. `categories(event = "max")` gives
+    the highest daily category instead.
   - The category **unit** is its own parameter, defaulting to the
     detection threshold. The Hobday presets fix it at p90 minus the
     baseline. MHW-MAD's 95th and 99th percentile products use their own
@@ -453,7 +459,9 @@ first call, and by default NaNs in the input are overwritten.
   1 Mar;
 - missing (doy, year) cells in the climatology period are filled with
   that doy's mean across years. That's in heatwaveR but not in
-  `R/mhw.R`, which stops on any NA.
+  `R/mhw.R`, which stops on any NA. spells' heatwaveR modes fill them
+  (`reference_missing = "plug"`), so where `R/mhw.R` stops, the parity
+  mode gives heatwaveR's answer.
 
 1.0.0 drops two of these. The window takes the days across the new year
 from the adjacent years, so seas and thresh change from 12 Dec to 20
@@ -461,7 +469,9 @@ Jan, and the trailing gap isn't joined. The summary's "0.5.3.x" change
 to the moderate-category comparison (`>` to `>=`) is already in 0.5.5,
 so it changes nothing here. heatwave3 1.5.0 equals 1.0.0 on gap-free
 data, but not with gaps: it leaves missing cells out of the window
-instead of filling them, and doesn't interpolate at detection. Every
+instead of filling them (`reference_missing = "omit"`, the one switch
+between the `heatwaveR-1.0.0` and `heatwave3-1.5.0` modes), and doesn't
+interpolate at detection. Every
 quirk is a named, documented switch, tested against the version it
 names.
 
@@ -918,8 +928,29 @@ area metrics as sums, and the ice mask.
    same day*, as two switches on the 0.5.5 mode: the window at the new
    year (`window_ends = "shorten"`) and the trailing gap. Each mode fails
    the other's stored outputs on 37-48 values per case, so the tests
-   tell them apart. Next: the heatwave3 mode, event metrics
-   (`spell_events()`), and the fill of reference-period gaps. Moving
+   tell them apart. *`heatwave3-1.5.0` done the same day*, with the
+   fill of reference-period gaps: heatwaveR fills each missing (slot,
+   year) cell with the slot's mean across the years, heatwave3 leaves it
+   out of the window, and both fill slot 60 from whichever of 28
+   February and 1 March is there. An eighth case (`wa_refgaps`) has gaps
+   in the reference period; there the two rules differ on 172 slots (up
+   to 0.031 °C in the threshold) and 8 event days. heatwave3's stored
+   outputs now include its daily file, so its event days and daily
+   categories are tested too. *`spell_events()` done the same day*: one
+   row per spell, reproducing all three engines' event tables exactly
+   (dates, duration, the 12 intensities, both rates) and their event
+   categories, with spells' own additions (steps beyond the threshold
+   and missing, `cut_start` and `cut_end`). Two rules came with it:
+   heatwave3 gives no rate when the day outside the spell is missing,
+   where heatwaveR counts it as the baseline (`rate_neighbour`), and the
+   event category is a rounded share (`categories(event = "share")`). A
+   ninth case (`wa_levels`) sets stretches on the category levels, since
+   no natural case separated the event-category rules. Not done yet:
+   cumulative intensity over the steps beyond the threshold only
+   (lfstat's `vbt`; relative to the baseline or the threshold is still
+   open), cold spells (`direction = "low"`), and heatwaveR's event names
+   and seasons, which are labels. Next: the clean defaults and the
+   presets. Moving
    trend.sst to clean rules is a separate, visible step, and its labels
    say which rules it uses.
 2. **Generality gate 1 (ice)**: re-express trend.ice's ice season through
