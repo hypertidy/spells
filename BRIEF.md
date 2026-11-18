@@ -341,6 +341,11 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
 - **metrics** per spell: start, end, peak, duration, intensity (max,
   mean, cumulative, variance), onset and decline rates, the highest
   category reached, and the steps interpolated.
+  - Onset and decline rates need a stated rule at the ends of the
+    series, and tests there. marineHeatWaves and xmhw both divide by
+    zero for an event that peaks on the series' last day (xmhw checked
+    by running). Spells marks a spell cut by either end of the series
+    (at the end, the provisional tail) and gives no rate on that side.
   - Duration counts the joined gaps, so spells also report the steps
     actually beyond the threshold (lfstat's `dbt`). Cumulative intensity
     comes two ways too: with the joined gaps counted, as heatwaveR does,
@@ -809,7 +814,7 @@ Packages to cover:
   - hydroEvents, EflowStats *(done 2026-11-18 from the source, not run:
     `hydroEvents.md`, `eflowstats.md`)*
   - extRemes, evd, POT (runs declustering) *(done 2026-11-18 from the
-    source, with the declustering points checked by running:
+    source, with the declustering and HWMI points checked by running:
     `declustering.md`, `hwmi.md`)*
   - anomaly (CAPA) *(done 2026-11-18 from the source, checked by
     running: `anomaly.md`)*
@@ -817,8 +822,9 @@ Packages to cover:
   - land phenology (e.g. phenofit) *(done 2026-11-18 from the source,
     not run: `phenofit.md`)*
 - Python: xclim (`run_length`, the spell indicators), marineHeatWaves,
-  xmhw. *(done 2026-11-18 from the source, not run, with one xarray
-  check: `xclim.md`, `python-mhw.md`)*
+  xmhw. *(done 2026-11-18 from the source; xmhw's points checked by
+  running, with one xarray check; xclim and marineHeatWaves not run:
+  `xclim.md`, `python-mhw.md`)*
 - Near-real-time and operational prior art, for presentation:
   - the Marine Heatwave Tracker (heatwave3 on OISST, two baselines);
   - NOAA PSL forecasts;

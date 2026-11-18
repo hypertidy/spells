@@ -1,0 +1,21 @@
+extRemes 2.2.1 
+
+0. live hwyear() has 'sum(index) >= 122': FALSE ; '>= 365': TRUE 
+
+1. HWMI 3-day maxima: year 32 (padding) = 145.33 ; years 2-31 range 103.31 - 113.27 
+   hwmi()$pdfx range: 100.21 - 148.43 
+   identical to density over years 2-31: FALSE ; over years 2-32: TRUE 
+   HWMId T30y25p, T30y75p: 36.9689 38.3506 
+   quantiles of annual maxima, years 2-31: 36.9689 38.3506 ; years 2-32: 36.9736 38.4277 
+
+2. consecDayMax with the maximum 3-day sum (60) at days 101 and 251: 101 251 60 
+   hwmi() keeps element 2 as the year's 3-day maximum: 251 
+   CarcasonneHeat 1981-2011: years whose 3-day maximum is tied: 0 of 31
+
+3. 5-day heatwave, days 180-184: 35.16 35.16 36.63 35.3 35.31 ; day 179: 27.42 ; day 185: 27.69 
+   hwmi(): magnitude 1.18705  duration 5  start 180 
+   by hand, pad = max(day before, heatwave, day after) = 36.63 : 1.18705 
+   by hand, pad = max(day before, day after) = 27.69 : 0.572936 
+
+4. hwmi() example, Carcassonne 2003: 3.68 12 214  (man page text: hwmi = 3.68, 12 days, start day 214)
+   hwmid() on the same data: 18.6 12 214 

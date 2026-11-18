@@ -1,0 +1,45 @@
+xmhw 1.0.0  xarray 2026.9.0  pandas 2.3.3  numpy 2.5.1 
+
+1. A 7-day event on days 0-6 (the series' first 7 days), T = 22:
+ index_start  index_end  duration time_start
+         1.0        6.0       6.0 2001-01-02
+   marineHeatWaves (by its code): index_start 0, duration 7
+   A 5-day event on days 0-4:
+ index_start  duration
+       300.0       6.0
+   (the 6-day event on days 300-305 is there for comparison)
+
+2. Event on days 50-56, T = 24 then 22 x 6; day 49 is 20 (anomaly 0).
+ index_start  index_peak  intensity_max  rate_onset
+        50.0        50.0            4.0    1.333333
+   by hand: (4 - 2.0) / 1.5 = 1.3333 (xmhw's period); / 0.5 = 4.0000 (marineHeatWaves)
+
+3. Event on the last 6 days (indexes 724-729), T = 22 x 5 then 24:
+ index_end  index_peak  intensity_max  rate_decline
+     729.0       729.0            4.0           NaN
+   intended (both codes' comments): period 1 day, so (4 - 4) / 1 = 0
+   the test compares the peak's position within the event with the series' last index, so the period is 0
+
+4. block_average(mhw, dstime=intermediate):
+   2 x 2 lat-lon grid: ValueError: Input array must be 1 dimensional
+   single series: AttributeError: 'Dataset' object has no attribute 'time'
+
+5. Event on days 100-106 of 2001: T = 24.5 x 3 (category 4), then 25.5 x 4 (category 5);
+   event on days 200-206 of 2001: T = 22 x 7 (category 2).
+   per event:
+ index_start  duration  duration_extreme  category  intensity_mean  intensity_mean_abs
+       100.0       7.0                 7       4.0        5.071429           25.071429
+       200.0       7.0                 0       2.0        2.000000           22.000000
+   block 2001:
+     ecount                     2.0000
+     moderate_days              0.0000
+     strong_days                7.0000
+     severe_days                0.0000
+     extreme_days               3.0000
+     total_days                 10.0000
+     intensity_mean             3.5357
+     intensity_mean_abs         3.5357
+     intensity_cumulative       24.7500
+     intensity_cumulative_abs   24.7500
+   expected if extreme_days counted category >= 4: 7, and total_days 14
+   expected absolute block means: intensity_mean_abs 23.5357, intensity_cumulative_abs 164.7500

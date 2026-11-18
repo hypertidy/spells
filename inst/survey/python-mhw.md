@@ -9,9 +9,14 @@
     (`conda/meta.yaml`), Apache-2.0, from the ARC Centre of Excellence for
     Climate Extremes (Paola Petrelli). An xarray/dask rewrite of
     marineHeatWaves.
-- **How:** read 2026-11-18 from source. **Not run**, except one check of
-  xarray behaviour that xmhw relies on (`checks/xarray-maxgap.py`).
-  Points marked *(to confirm)* are read from the code.
+- **How:** read 2026-11-18 from source. xmhw was then checked by running
+  the same day (`checks/xmhw.py` and `.out`). xmhw 1.0.0 was installed by
+  the user into the system Python, and its files are identical to the
+  source read. The libraries were xarray 2026.9.0, pandas 2.3.3 and numpy
+  2.5.1. One xarray behaviour that xmhw relies on was checked too
+  (`checks/xarray-maxgap.py`). marineHeatWaves was **not run**: its
+  values below are worked from its code. Points marked *(checked)* were
+  confirmed by running xmhw; *(to confirm)* ones are read from the code.
 
 ## marineHeatWaves `detect()`
 
@@ -46,6 +51,12 @@
   cumulative), the peak by the anomaly, and onset and decline rates that
   assume the event starts and ends half a day beyond its first and last
   days.
+  - **The decline period at the series end tests the wrong thing.** The
+    comment says that if the peak is on the series' last day, the
+    period is 1 day. The code tests `tt_peak == T − 1`, but `tt_peak`
+    counts from the event's start, so it's almost never true. An event
+    that ends on the last day and peaks there gets a period of 0, so a
+    rate of 0/0. xmhw copied the test and gives NaN *(checked in xmhw)*.
 - **Categories:** `floor(1 + (temp − thresh) / (thresh − seas))` per
   day; the event's category is the highest, capped at 4. **Joined gap
   days below the threshold fall in no category**, so with gaps joined,
@@ -85,22 +96,40 @@
     days, where marineHeatWaves' `maxPadLength = n` fills n.
 - **Gap joining** is the same (gaps of up to `maxGap`, after the minimum
   duration).
-- *(to confirm)* **An event that starts on the series' first day loses
+- *(checked)* **An event that starts on the series' first day loses
   that day.** `mhw_filter()` counts run positions from 0, so a leading
-  run of k days is measured as k − 1 and starts one step late. A 5-day
-  event at the very start is dropped.
-- *(to confirm)* **Onset rate:** for an event that peaks on its first
+  run of k days is measured as k − 1 and starts one step late. A 7-day
+  event on days 0–6 came back as starting at index 1 with duration 6. A
+  5-day event at the very start is dropped.
+- *(checked)* **Onset rate:** for an event that peaks on its first
   day, not at the series start, xmhw divides by 1.5 days and
-  marineHeatWaves by 0.5.
+  marineHeatWaves by 0.5. A peak anomaly of 4, after a day with anomaly
+  0, gave 1.333 in xmhw. marineHeatWaves' code gives 4.
 - **Blocks** (`block_average()`): events go to blocks by `time_start`
   (default) or `time_peak`. Category days count by day.
-  - *(to confirm)* `extreme_days` counts category 4 only, not 4 and
+  - *(checked)* **`block_average()` doesn't run with these library
+    versions**, called as xmhw's docs show it,
+    `block_average(mhw, dstime=intermediate)`:
+    - on a lat × lon grid it fails in `pd.cut` ("Input array must be 1
+      dimensional"), because the years are taken from `time_start`
+      before the cells are stacked;
+    - on a single series it fails with "'Dataset' object has no
+      attribute 'time'", because the intermediate dataset's time axis is
+      named `index` there.
+
+    xmhw's own `test_block_average()` is an empty `pass`. The two
+    points below were checked by calling the aggregation functions it
+    uses (`agg_mhw`, `agg_cats`) directly.
+  - *(checked)* `extreme_days` counts category 4 only, not 4 and
     above, so days past 4× are dropped from it and from `total_days`.
-    The per-event `duration_extreme` uses ≥ 4.
-  - *(to confirm)* the block `intensity_mean_abs` and
+    The per-event `duration_extreme` uses ≥ 4. With 3 days at category 4
+    and 4 at category 5, the event had `duration_extreme` 7, and the
+    block had `extreme_days` 3 and `total_days` 10, not 14.
+  - *(checked)* the block `intensity_mean_abs` and
     `intensity_cumulative_abs` aggregate `intensity_mean` and
     `intensity_cumulative` (relative to the climatology), not the
-    absolute values.
+    absolute values. The block gave 3.536 and 24.75, the same as the
+    relative fields, where the absolute ones would be 23.54 and 164.75.
   - `split_event()`, for events across years, is a stub that returns its
     input.
 - **Severity**, `−(temp − seas) / (thresh − seas)` per day, is an extra
@@ -131,4 +160,11 @@
    steps. xarray measures from valid value to valid value, one more. Any
    spells code built on xarray (or a Python port) has to convert.
 5. **xmhw isn't an oracle.** It's useful as gridded prior art in xarray,
-   but it differs from marineHeatWaves in the places above.
+   but it differs from marineHeatWaves in the places above, now
+   confirmed by running, and its block summaries don't run with current
+   pandas and xarray.
+6. **Rates at the series ends need a stated rule and a test.** Both
+   Python codes divide by zero for an event that peaks on the series'
+   last day. Spells' onset and decline rates should have tests at both
+   ends of the series, and should mark an event cut by the series end
+   (a provisional tail) rather than give a rate for it.

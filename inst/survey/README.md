@@ -23,12 +23,12 @@ the source or from running the code.
 | SPEI 1.8.1, SCI 1.0-3 | source read 2026-11-17, not run | [spei-sci.md](spei-sci.md) |
 | hydroEvents 0.13.0 | source read 2026-11-18, not run | [hydroEvents.md](hydroEvents.md) |
 | EflowStats 5.2.0 | source read 2026-11-18, not run | [eflowstats.md](eflowstats.md) |
-| extRemes 2.2-1 | source read 2026-11-18; declustering checks run | [declustering.md](declustering.md), [hwmi.md](hwmi.md) |
+| extRemes 2.2-1 | source read 2026-11-18; declustering and HWMI checks run | [declustering.md](declustering.md), [hwmi.md](hwmi.md) |
 | evd 2.3-7.1, POT 1.1-12 | source read 2026-11-18; checks run | [declustering.md](declustering.md) |
 | anomaly 4.3.3 (CAPA) | source read 2026-11-18; checks run | [anomaly.md](anomaly.md) |
 | iglu 4.2.2 | source read 2026-11-18, not run | [iglu.md](iglu.md) |
 | phenofit 0.3.11 (land phenology) | source read 2026-11-18, not run | [phenofit.md](phenofit.md) |
-| marineHeatWaves `d7292bf`, xmhw 1.0.0 (Python) | source read 2026-11-18, not run; one xarray check | [python-mhw.md](python-mhw.md) |
+| marineHeatWaves `d7292bf`, xmhw 1.0.0 (Python) | source read 2026-11-18; xmhw checks run, marineHeatWaves not run; one xarray check | [python-mhw.md](python-mhw.md) |
 | xclim 1.0 (Python) | source read 2026-11-18, not run | [xclim.md](xclim.md) |
 | estimators (interp, DINEOF, DINCAE, 4DVarNet, DIRECT, OISST, MUR, DUACS, GlobColour gap-free) | papers and product documents read 2026-11-18 | [estimators.md](estimators.md), grid in `estimators.csv` |
 
@@ -178,7 +178,11 @@ the source or from running the code.
     interquartile range of the reference period's annual maxima), its
     yearly summary is the largest heatwave with its duration and start,
     it drops 31 December in leap years, and it cuts heatwaves at
-    1 January.
+    1 January. Its older HWMI (2014) has code details a parity version
+    would have to keep (checked by running): the padding year after the
+    reference period feeds its reference density, a 3n + 2 day heatwave
+    is padded with a copy of its hottest day, and a tied 3-day maximum
+    puts a day number into the density.
 33. **CAPA (anomaly) finds anomalous segments by penalised cost, not
     by threshold and persistence.** It keeps a segment when length ×
     mean² beats a penalty, finds raised and lowered segments together,
@@ -214,11 +218,15 @@ the source or from running the code.
     climatology period when data exists, it doesn't interpolate missing
     values by default (its docstring says it does), it has no
     trailing-gap join, and joined gap days fall in no category.
-41. **xmhw isn't a faithful port** (to confirm by running): an event that
+41. **xmhw isn't a faithful port** (checked by running): an event that
     starts on the series' first day loses that day, the onset period for
-    first-day peaks is 1.5 days instead of 0.5, and block `extreme_days`
-    counts category 4 only. Its `maxPadLength` fails as documented: an
-    integer `max_gap` on a date axis is rejected by xarray (checked).
+    first-day peaks is 1.5 days instead of 0.5, block `extreme_days`
+    counts category 4 only, and the block absolute intensities are the
+    relative ones. Its `maxPadLength` fails as documented: an integer
+    `max_gap` on a date axis is rejected by xarray. `block_average()`
+    itself doesn't run with xarray 2026.9.0 and pandas 2.3.3, on a grid
+    or on a single series. Both xmhw and marineHeatWaves give a decline
+    rate of 0/0 for an event that peaks on the series' last day.
 42. **xclim already has most of spells' def parameters under other
     names:** `resample_before_rl` and `index` for attribution,
     `min_gap` for gaps, `find_events` for start and stop conditions with
@@ -272,5 +280,10 @@ and climdex.pcic from GitHub at `011cb78`. Each script writes its own
   `%<>%` works;
 - `climdex.R`: WSDI across 1 January, and out-of-base thresholds in base
   years;
+- `hwmi.R`: extRemes' HWMI and HWMId (which reference years feed each,
+  the padding of a 3n + 2 day heatwave, tied 3-day maxima, and which
+  duplicated `hwyear()` is live);
 - `xarray-maxgap.py`: xarray's `max_gap` with an integer on a date axis
-  (finding 41).
+  (finding 41);
+- `xmhw.py`: xmhw 1.0.0, installed by the user into the system Python,
+  run with `python3 -I` (finding 41).

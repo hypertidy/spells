@@ -3,8 +3,9 @@
 - **Source read:** `R/hwmi.R` and `R/hwmid.R` in the CRAN tarball
   `extRemes_2.2-1.tar.gz` (2025-05-16). The man pages name Simone Russo
   as the author of these functions.
-- **How:** read 2026-11-18 from source. **Not run.** Points marked *(to
-  confirm)* are read from the code.
+- **How:** read 2026-11-18 from source, then checked by running the same
+  day with extRemes 2.2-1 installed (`checks/hwmi.R` and `.out`). Points
+  marked *(checked)* were confirmed by running.
 - **References:** Russo et al. 2014, *J. Geophys. Res.*,
   doi:10.1002/2014JD022098 (HWMI); Russo, Sillmann and Fischer 2015,
   *Environ. Res. Lett.* 10, 124003, doi:10.1088/1748-9326/10/12/124003
@@ -69,14 +70,44 @@ HWMId replaced HWMI in the 2015 paper.
   rules written for 365-day years. One branch has a fixed 120 days
   (`Ts[1:120]`), and a comment mentions 122, which look like leftovers
   from a summer-only version.
-- *(to confirm)* The loop over the reference years' 3-day maxima runs
+- *(checked)* The loop over the reference years' 3-day maxima runs
   over years 2–32 of `Tref`, so 31 years, including the padding year
   after the reference period. HWMId's loop over annual maxima covers
   years 2–31.
-- *(to confirm)* Padding a heatwave of 3n + 2 days, the main branch
+  - With a spike put into year 32 only, `hwmi()`'s density is
+    identical to one built from years 2–32, and its support reaches the
+    spike. HWMId's percentiles of annual maxima match years 2–31 and are
+    unaffected.
+- *(checked)* Padding a heatwave of 3n + 2 days, the main branch
   adds `max(Ts[hwt - 1], Ts[hwt:(hwt + hwd)])`, the maximum over the day
-  before **and the whole heatwave**, so in practice a copy of the
-  hottest day. The edge branches use a neighbouring day instead.
+  before, **the whole heatwave and the day after**, so in practice a
+  copy of the hottest day. The edge branches use a neighbouring day
+  instead.
+  - For a 5-day heatwave, `hwmi()` gave 1.187, the value with the
+    hottest day (36.6) as padding. With the larger of the days before
+    and after (27.7) it would be 0.573.
+- *(checked)* **A tie in a year's largest 3-day sum corrupts the
+  density.** `consecDayMax()` returns `c(times, max)`, and `hwmi()` keeps
+  element 2. With two tied maxima, element 2 is the second day number
+  (251 in the check, not the sum, 60). The package's Carcassonne data
+  has no tied year in 1981–2011, so this is rare in data recorded to
+  0.1 °C, but not impossible.
+- The 3-day sums are centred on days 2–364 of each year, so they don't
+  cross 1 January.
+- The leftover branches `Ts[1:120]` and `Ts[1:363]` can't be reached.
+  They need a heatwave from day 2 to day 365 (363 days), and 363 is a
+  multiple of 3, so neither remainder branch applies.
+
+## Duplicated helpers
+
+`hwmi.R` and `hwmid.R` both define `cut366thDay()`, `mvThreshold()` and
+`hwyear()`, and the file collated last wins. The first two copies are
+identical. `hwyear()` differs: hwmi.R's treats a year with **122 or
+more** days above the threshold as one heatwave starting on day 1 (a
+summer-only leftover: June to September is 122 days), and hwmid.R's
+does that only at **365**. *(checked)* The live one is hwmid.R's (365),
+so both indices use it. Read alone, hwmi.R would mislead about what
+`hwmi()` does in a warm year.
 
 ## What this means for spells
 
@@ -89,7 +120,12 @@ HWMId replaced HWMI in the 2015 paper.
    - runs cut at the calendar year;
    - the magnitude metric, and the per-year maximum.
 
-   Store golden outputs from `extRemes::hwmid()`.
+   Store golden outputs from `extRemes::hwmid()`. The package example
+   reproduces its man page (Carcassonne 2003: HWMI 3.68, 12 days, from
+   day 214; HWMId 18.6 for the same heatwave).
+   - A HWMI (2014) preset, if wanted, should not copy two code details:
+     the padding year in the 3-day-maximum density, and tied maxima.
+     Store them as a parity version, not the clean rule.
 2. **A metric can have its own origin and unit, fitted on the reference
    period.** HWMId's daily magnitude is measured from the 25th
    percentile of the annual maxima, in units of their interquartile
