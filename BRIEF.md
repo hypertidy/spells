@@ -191,7 +191,10 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
     year in climdex.pcic and by its January year in ClimInd. lfstat
     makes it explicit for hydrological years: `assign = "majority"`,
     `"start"` or `"end"`. EflowStats changed its label in 5.2.0, from
-    the end year to the majority.
+    the end year to the majority. Seasons found from the data (phenofit
+    divides trough to trough) are labelled by the year of their peak,
+    and can be several to a year, so summaries need a season index
+    within the year.
 - **baseline**: the expected value per slot. The options are a
   climatology (windowed and smoothed, heatwaveR style), a fixed value, a
   per-season statistic (bloom: the median of that year), a trend-aware or
@@ -240,6 +243,9 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
   multiple of the standard deviation, or a probability (z value) under a
   distribution fitted per slot (SPI, SPEI, SCI). The last can
   extrapolate beyond the sample and handles zero inflation.
+  - A fraction of the season's amplitude, base + f × (peak − base), with
+    the base taken separately before and after the peak (phenofit's TRS,
+    from TIMESAT). Separate bases give different start and end levels.
   - A threshold can come from another series: EflowStats' flood
     threshold is a percentile of annual instantaneous peaks, converted
     to daily flow. The def records the probability, not a
@@ -300,12 +306,17 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
   interpolate up to n steps, then count as baseline (heatwaveR); break
   the spell; or refuse the season (trend.ice). Deleting missing steps
   and closing up the series (extRemes with `na.omit`) isn't an option:
-  the gap then neither breaks nor counts.
+  the gap then neither breaks nor counts. Filling long gaps with the
+  background value (phenofit) is "count as baseline" by another name.
 - **censoring**: a spell that touches the start or end of the series,
   or a missing run it can't cross, is flagged as left- or right-censored
   instead of being silently cut short. These are the same flags as
   trend.ice's `ice_at_start` and `ice_at_end`. EflowStats' `trim`
-  drops such spells instead, which a parity switch could copy.
+  drops such spells instead, which a parity switch could copy. Two
+  things spells never does: pad the record ends with copies of the
+  adjacent year (phenofit's `add_HeadTail()`), or fill an undetected
+  date with a guess (phenofit's fallback to the midpoint between season
+  start and peak). Those come back NA, with a reason.
 - **eligibility**: a mask of steps where the variable means nothing,
   such as SST under ice. Ineligible isn't missing:
   - it's never interpolated across;
@@ -769,7 +780,8 @@ Packages to cover:
   - anomaly (CAPA) *(done 2026-11-18 from the source, not run:
     `anomaly.md`)*
   - iglu *(done 2026-11-18 from the source, not run: `iglu.md`)*
-  - land phenology (e.g. phenofit)
+  - land phenology (e.g. phenofit) *(done 2026-11-18 from the source,
+    not run: `phenofit.md`)*
 - Python: xclim (`run_length`, the spell indicators), marineHeatWaves,
   xmhw.
 - Near-real-time and operational prior art, for presentation:

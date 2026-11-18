@@ -27,7 +27,7 @@ the source or from running the code.
 | evd 2.3-7.1, POT 1.1-12 | source read 2026-11-18, not run | [declustering.md](declustering.md) |
 | anomaly 4.3.3 (CAPA) | source read 2026-11-18, not run | [anomaly.md](anomaly.md) |
 | iglu 4.2.2 | source read 2026-11-18, not run | [iglu.md](iglu.md) |
-| phenofit (land phenology) | to do | |
+| phenofit 0.3.11 (land phenology) | source read 2026-11-18, not run | [phenofit.md](phenofit.md) |
 | xclim, marineHeatWaves, xmhw (Python) | to do | |
 | estimators (DINEOF, DINCAE, 4DVarNet, L4 methods) | to do | separate short grid |
 
@@ -199,6 +199,14 @@ the source or from running the code.
     grid, fills gaps of up to 45 minutes, and splits the trace at longer
     ones. Episodes per day of recording exclude the gaps, but its
     time-above shares count raw readings.
+38. **phenofit's threshold is a fraction of each season's amplitude**,
+    with separate bases before and after the peak, on a fitted curve. It
+    finds seasons from the data (trough to trough), labels them by the
+    year of the peak, and allows several per year.
+39. **phenofit fills what it can't find.** With no crossing, the start
+    date becomes the midpoint between season start and peak, unflagged.
+    The record ends are padded with copies of the adjacent year, and long
+    gaps are filled with the background value.
 
 Findings 2 to 5 were confirmed by running (`checks/heatwave3.R`, output
 in `checks/heatwave3.out`). The details are in heatwave3.md, "Checked by
