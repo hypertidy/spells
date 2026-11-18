@@ -224,6 +224,11 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
       the fitting period (the reference period or the whole record), and
       detection on the detrended series. Without detection on it, it's a
       fixed baseline with a narrower spread, as in heatwave3.
+    - **percentile** baselines need the order as well as the estimator:
+      pool a window and take the percentile (Hobday), or take the
+      percentile per day and smooth it with running means (what
+      MHW-MAD's data shows, against its paper). The mean is the same
+      either way; the p90 differs by about 0.1 K on the same SST.
     - **shifting** needs the window length, its alignment (MHW-MAD's is
       trailing and includes the year being assessed; centred is the
       other choice), the update step, and the start before a full window
@@ -502,8 +507,10 @@ st <- spell_state(...); spell_step(st, x_today, b, def)   # streaming
     anomalies and thresholds (checked at nine Tasman pixels): 366-day
     slots, join-first order, bridged days in category 0, floors of the
     product's own threshold unit. A `hayward2026` per-step parity test
-    can use them as stored data. Testing its climatology needs the CCI
-    SST.
+    can use them as stored data. Its climatology is reproduced too, from
+    the CCI SST (Copernicus Marine ARCO, no login): per-day mean and
+    nearest-rank percentile of the 30 reference years, slot 60
+    interpolated, then 11- and 31-day periodic running means.
   - `schlegel2021` (cold spells): parity, as for Hobday.
   - `massom2013`: trend.ice's current COGs, exactly.
   - `siegel2002`: published bloom timing.
@@ -816,7 +823,8 @@ Packages to cover:
   `heatwaveR-versions.md` and `checks/`).* MHW-MAD (DMI, ESSD 2026: fixed, shifting and
   detrended baselines) and Ocetrac (objects) sit alongside. *Done
   2026-11-17: `mhw-mad.md` (from the paper and data README; the code is
-  under embargo; checked against its ERDDAP data 2026-11-18) and
+  under embargo; checked against its ERDDAP data and its climatology
+  rebuilt from the CCI SST, 2026-11-18) and
   `ocetrac.md` (from the source, not run).*
 - R:
   - heatwaveR (+ RmarineHeatWaves, archived)

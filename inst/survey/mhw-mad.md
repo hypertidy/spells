@@ -17,9 +17,26 @@
   2015–2016, the years of the 2015/16 Tasman Sea marine heatwave. The
   data came from DMI's ERDDAP (2.30) and was cached outside the repo.
   The check compares each product's categories with its own anomalies
-  and thresholds. It can't test the climatology itself, because ERDDAP
-  serves only the 49 MHW-MAD datasets, not the CCI SST behind them.
-  Points marked *(checked)* come from this.
+  and thresholds. ERDDAP serves only the 49 MHW-MAD datasets, not the
+  CCI SST behind them.
+- **The climatology was rebuilt from the SST the same day**
+  (`checks/mhw-mad-sst.py` and `checks/mhw-mad-clim.R`, each with its
+  `.out`):
+  - The ESA SST CCI Analysis v3.0 for the same nine pixels came from
+    Copernicus Marine's public ARCO store:
+    `SST_GLO_SST_L4_REP_OBSERVATIONS_010_024`, dataset version
+    `ESACCI-GLO-SST-L4-REP-OBS-SST_202603`, product version 3.0.1,
+    1980–2021. It was read with GDAL's multidimensional Zarr API over
+    `/vsicurl/`, with no login, in about 36 s per pixel for the whole
+    record.
+  - Its `source` attribute is identical to the one in MHW-MAD's
+    climatology files. SST minus MHW-MAD's mean gives MHW-MAD's
+    anomalies to within 0.0006 K (rms 0.0002 K).
+  - CDO 2.1.1's source (`percentiles.cc`, `percentiles_hist.cc`,
+    `Ydrunpctl.cc`, `Ydrunstat.cc`), the version the paper names, was
+    read to set up the candidates.
+
+  Points marked *(checked)* come from these checks.
 - **What it is:** a gridded data product, not a library. It covers ESA
   SST CCI L4 v3.0 (CDR plus interim CDR) at 0.05° (7200 × 3600), daily
   from 1982-01-01 to 2024-12-31. The input is gap-free; land is NaN.
@@ -27,9 +44,9 @@
 
 ## The grid columns
 
-- **Baseline:** for each day-of-year slot (366, including 29 February), it
-  pools every value in a ±5-day window across every year of the
-  reference period. The mean and the percentiles are taken from that
+- **Baseline:** for each day-of-year slot (366, including 29 February),
+  the paper says it pools every value in a ±5-day window across every
+  year of the reference period (but see *checked* below: it doesn't). The mean and the percentiles are taken from that
   pool, then smoothed with a 31-day moving average "wrapped from 31
   December to 1 January, when required" (§3.2). In non-leap years, the
   values for DOY 60 are interpolated linearly between DOY 59 and 61
@@ -46,17 +63,33 @@
   - *(checked)* **Slots follow a 366-day calendar**: in a non-leap
     year, 1 March is slot 61. With calendar day numbers (1 March = 60)
     4 days disagree, and with the 366-day calendar none do.
-  - Slot 60 is within 0.0015 K of the mean of slots 59 and 61, where
-    neighbouring slots differ by up to 0.03. So it's close to an
-    interpolation, but not exact: perhaps interpolated before the 31-day
-    smoothing.
-
-  Not stated, and not checkable without the SST:
-  - which percentile estimator;
-  - whether the ±5-day window takes days from the adjacent years at the
-    new year (the heatwaveR 0.5.5 and 1.0.0 difference) or wraps within
-    the year;
-  - any rounding.
+  - *(checked)* **The climatology isn't built the way the paper reads.**
+    It doesn't pool a ±5-day window and take statistics of the pool.
+    Both the mean and p90 are reproduced, to within 0.0004 K, by:
+    - statistics of the 30 values (1991–2020) of each calendar day
+      only: the mean, and **nearest rank** for p90 (`ceil(n × p)`, the
+      27th of 30). That's CDO's default percentile method, R's type 1;
+    - slot 60 interpolated between slots 59 and 61 (from its own 8 leap
+      years instead, p90 is off by up to 0.03 K);
+    - then an **11-day running mean** of those per-day statistics (the
+      paper's "11 d window"), and then the 31-day running mean, both
+      periodic over the 366 slots.
+  - So **the window wraps across the new year on the slot axis.** It
+    uses no days from 1990 or 2021, and isn't shortened at the ends of
+    the period.
+  - For the mean, this equals pooling a ±5-day window that wraps within
+    the reference period, because a mean of daily means is a pooled
+    mean. Pooling that takes days from the adjacent years fits worse in
+    the slots near the new year (rms 0.0008 K against 0.0002 K), and a
+    shortened window worse again (0.0014 K).
+  - For p90 it doesn't: every percentile of the pooled ±5-day values
+    (R types 1–9, or CDO's 101-bin histogram) is 0.09–0.11 K too high
+    on average. A Hobday-style threshold on the same SST (pooled ±5
+    days, linear percentile, then the 31-day running mean) is higher
+    than MHW-MAD's at every pixel and slot, by 0.02–0.23 K (mean
+    0.095 K). So MHW-MAD's thresholds are lower and find more heatwave
+    days than Hobday's method would.
+  - No sign of rounding: the residuals are at the CSV's precision.
 - **Detrending is per pixel and per calendar date, over the whole
   record.** For each pixel and each calendar date, it fits SST against
   year by ordinary least squares over 1982–2024, "regardless of
@@ -195,14 +228,21 @@
      threshold anomaly.
 
    So the gap-and-duration order is a def parameter, not a constant
-   (Hobday: the minimum first; MHW-MAD and lfstat: join first). Testing
-   the climatology too (the percentile estimator, the window at the new
-   year) needs the CCI SST for the same pixels, from CEDA or Copernicus
-   Marine. There are still no event metrics to test. It's worth doing if
-   MHW-MAD becomes a reference product for a trend.* member.
-5. **Ice:** MHW-MAD doesn't mask ice and says so. That supports the
+   (Hobday: the minimum first; MHW-MAD and lfstat: join first). The
+   climatology is reproduced too, from the CCI SST, so spells can
+   rebuild MHW-MAD's baseline from its input. There are still no event
+   metrics to test.
+5. **"Pool, then the statistic" and "the statistic per day, then a
+   running mean" are different baselines.** The mean comes out the same
+   either way, but percentiles don't: MHW-MAD's p90 is about 0.1 K below
+   a Hobday p90 on the same SST. The baseline def needs this as a
+   parameter, with the percentile estimator, and a Hobday preset must
+   pool. A `hayward2026` baseline would be: per-day nearest rank over
+   the reference years, slot 60 interpolated, then 11- and 31-day
+   periodic running means.
+6. **Ice:** MHW-MAD doesn't mask ice and says so. That supports the
    brief's eligibility mask.
-6. **Labels:** the dataset names `mhw_<detrend>_<baseline>_<pct>_<dur>_<type>`
+7. **Labels:** the dataset names `mhw_<detrend>_<baseline>_<pct>_<dur>_<type>`
    are prior art for labels generated from the def.
 
 ## Checked by running
@@ -225,3 +265,11 @@ questions listed here before:
   climatologies do, so the anomalies jump at the seam: by up to 0.08 K
   more than the WMO product's change from 31 December to 1 January.
   Event detection carries across the seam.
+
+`checks/mhw-mad-sst.py` fetched the CCI SST, and `checks/mhw-mad-clim.R`
+rebuilt the WMO 90p climatology (about 8 s from the cache). Its sections:
+1. the input check;
+2. the mean under four window rules;
+3. p90 under 13 estimators on the pooled window;
+4. the rule that reproduces both;
+5. the comparison with a Hobday-style threshold.

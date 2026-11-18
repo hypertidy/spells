@@ -86,7 +86,9 @@ the source or from running the code.
     - `floor(anom / threshHW)`, in each product's own threshold unit.
 
     Its categories are stored up to 3 × 10⁻⁵ off whole numbers, so
-    readers must round.
+    readers must round. Its WMO climatology is reproduced too, to within
+    0.0004 K, from the CCI SST (Copernicus Marine's public ARCO store):
+    see finding 49.
 13. **Ocetrac tracks a cleaned exceedance mask, as heatwave3's blobs do**,
     with no minimum duration. It filters by area in grid cells, against a
     percentile of all blob areas. It links blobs either as 3-D
@@ -278,6 +280,19 @@ the source or from running the code.
     minimum on the joined span, with gap days counted. At nine Tasman
     pixels in 2015–2016 the two orders differ on 4.5% of event days
     (88 of 1942) with a 5-day minimum.
+49. **"Pool, then the percentile" and "the percentile per day, then a
+    running mean" are different baselines.** MHW-MAD's paper describes
+    Hobday's pooled ±5-day window. Its data is reproduced instead by:
+    - per-day statistics of the 30 reference years, with nearest rank
+      for percentiles (CDO's default);
+    - slot 60 interpolated;
+    - then 11-day and 31-day running means, periodic over 366 slots.
+
+    The mean is the same either way, but the p90 is lower than a Hobday
+    p90 on the same SST by 0.02–0.23 K (mean 0.095 K) at the Tasman
+    pixels. So the baseline def needs the order (pool or smooth), the
+    percentile estimator and the window's wrap rule as parameters. A
+    paper's prose isn't enough to set them: rebuild from the input.
 
 Finding 41's `maxPadLength` point was checked against xarray 2026.9.0
 (`checks/xarray-maxgap.py`, output in `checks/xarray-maxgap.out`).
@@ -317,7 +332,13 @@ and climdex.pcic from GitHub at `011cb78`. Each script writes its own
   them (finding 40);
 - `mhw-mad.R`: MHW-MAD's own anomalies, thresholds and categories at
   nine Tasman Sea pixels for 2015–2016, fetched from DMI's ERDDAP
-  into a cache directory given as its argument (findings 10–12 and 48).
+  into a cache directory given as its argument (findings 10–12 and 48);
+- `mhw-mad-sst.py`: the ESA SST CCI Analysis v3.0 at the same pixels,
+  1980–2021, from Copernicus Marine's public ARCO Zarr store with
+  GDAL's multidimensional API, run with `python3 -I`, into the same
+  cache;
+- `mhw-mad-clim.R`: MHW-MAD's WMO climatology rebuilt from that SST
+  (finding 49).
 
 The Python scripts end in `-check` so they can't shadow the package
 they import.

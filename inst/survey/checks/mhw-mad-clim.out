@@ -1,0 +1,42 @@
+CCI SST: 1980-01-01 to 2021-12-31 ; 9 pixels; 0 missing values
+ERDDAP's CSV gives mean and p90 to 4 decimals (1e-4 K).
+
+1. SST - mean[slot] - anom, 9 pixels x 731 days: max |difference| 0.000563 K; rms 0.000172 K
+
+2. Mean, rebuilt minus published (K), 9 pixels x 366 slots:
+   window            slot 60       max    rms  | slots near the new year: max    rms
+   adjacent          own           0.0153 0.0026  |                        0.0026 0.0008
+   adjacent          interpolated  0.0033 0.0006  |                        0.0026 0.0008
+   shortened         own           0.0153 0.0027  |                        0.0032 0.0014
+   shortened         interpolated  0.0033 0.0007  |                        0.0032 0.0014
+   circular          own           0.0153 0.0026  |                        0.0004 0.0002
+   circular          interpolated  0.0033 0.0006  |                        0.0004 0.0002
+   cdo_noncircular   own           0.0153 0.0030  |                        0.0108 0.0046
+   cdo_noncircular   interpolated  0.0108 0.0016  |                        0.0108 0.0046
+   (circular and wrapping within each year pool the same days, so they can't be told apart)
+
+3. p90, rebuilt minus published (K), circular pool, slot 60 interpolated:
+      candidate max_abs     mean     sd
+     pool_type1  0.2250 9.32e-02 0.0356
+     pool_type2  0.2590 1.03e-01 0.0380
+     pool_type3  0.2250 9.32e-02 0.0356
+     pool_type4  0.2250 9.32e-02 0.0356
+     pool_type5  0.2590 1.03e-01 0.0380
+     pool_type6  0.2870 1.11e-01 0.0402
+     pool_type7  0.2320 9.51e-02 0.0360
+     pool_type8  0.2690 1.05e-01 0.0387
+     pool_type9  0.2660 1.05e-01 0.0386
+ hist_runbounds  0.2500 1.02e-01 0.0375
+ hist_daybounds  0.0986 1.23e-02 0.0305
+    day30_type1  0.0484 3.89e-06 0.0132
+    day30_type7  0.0840 2.05e-02 0.0149
+   pool_type1-9: R quantile types on the 330 pooled values;
+   hist_runbounds: CDO's 101-bin histogram with ydrunmin/ydrunmax bounds (the pool's own);
+   hist_daybounds: the same with ydaymin/ydaymax bounds (pool values outside them dropped);
+   day30_*: the 30 values of each slot only, no window
+4. mean     per-slot statistic -> 11-day -> 31-day running means: max |difference| 0.00038 K, rms 0.00016 K
+4. p90      per-slot statistic -> 11-day -> 31-day running means: max |difference| 0.00039 K, rms 0.00016 K
+   threshHW (p90 - mean):                                    max |difference| 0.00015 K
+   with slot 60 from its own 8 leap years instead, or type 7, the p90 is off by up to 0.03 and 0.06 K
+
+5. Hobday-style p90 minus MHW-MAD's p90: mean +0.095 K, range +0.019 to +0.232 K

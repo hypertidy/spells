@@ -1,0 +1,18 @@
+Warning 1: HTTP response code on https://s3.waw3-1.cloudferro.com/mdl-arco-geo-046/arco/SST_GLO_SST_L4_REP_OBSERVATIONS_010_024/ESACCI-GLO-SST-L4-REP-OBS-SST_202603/geoChunked.zarr/zarr.json: 403
+Warning 1: HTTP response code on https://s3.waw3-1.cloudferro.com/mdl-arco-geo-046/arco/SST_GLO_SST_L4_REP_OBSERVATIONS_010_024/ESACCI-GLO-SST-L4-REP-OBS-SST_202603/geoChunked.zarr/.zarray: 403
+GDAL 3.14.0dev-9bb42f5a7b-dirty
+store: https://s3.waw3-1.cloudferro.com/mdl-arco-geo-046/arco/SST_GLO_SST_L4_REP_OBSERVATIONS_010_024/ESACCI-GLO-SST-L4-REP-OBS-SST_202603/geoChunked.zarr
+title: ESA SST CCI Analysis v3.0 | version: 3.0.1 | id: OSTIA-ESACCI-L4-GLOB_CDR-v3.0
+time units: seconds since 1981-01-01 | n: 15341
+first, last date: 1980-01-01 2021-12-31 | steps of 1 day: True
+analysed_sst scale, offset, nodata: 0.009999999776482582 273.1499938964844 -32768.0 | unit: kelvin
+  150.025,-43.025: grid 150.0250,-43.0250; 0 missing; 36 s
+  152.025,-43.025: grid 152.0250,-43.0250; 0 missing; 36 s
+  154.025,-43.025: grid 154.0250,-43.0250; 0 missing; 36 s
+  150.025,-41.025: grid 150.0250,-41.0250; 0 missing; 36 s
+  152.025,-41.025: grid 152.0250,-41.0250; 0 missing; 36 s
+  154.025,-41.025: grid 154.0250,-41.0250; 0 missing; 36 s
+  150.025,-39.025: grid 150.0250,-39.0250; 0 missing; 36 s
+  152.025,-39.025: grid 152.0250,-39.0250; 0 missing; 37 s
+  154.025,-39.025: grid 154.0250,-39.0250; 0 missing; 37 s
+wrote /perm_storage/home/data/r_tmp/claude-1001/-perm-storage-home-mdsumner-Git-spells/0d6102c4-6121-4e3a-8cd4-da334413d751/scratchpad/erddap/cache/cci_sst_9px.csv
