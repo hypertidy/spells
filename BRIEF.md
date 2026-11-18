@@ -181,25 +181,35 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
   - The slot rule is part of the def, because conventions differ:
     heatwaveR uses 366 slots with 29 February filled from its
     neighbours, and climdex.pcic uses 365 slots, with 29 February
-    sharing 28 February's slot, or 360 slots.
+    sharing 28 February's slot, or 360 slots. EflowStats 5 drops 29
+    February, where HIT dropped day 366.
   - So is the season-year label: winter is labelled by its December
     year in climdex.pcic and by its January year in ClimInd. lfstat
     makes it explicit for hydrological years: `assign = "majority"`,
-    `"start"` or `"end"`.
+    `"start"` or `"end"`. EflowStats changed its label in 5.2.0, from
+    the end year to the majority.
 - **baseline**: the expected value per slot. The options are a
   climatology (windowed and smoothed, heatwaveR style), a fixed value, a
   per-season statistic (bloom: the median of that year), a trend-aware or
-  shifting baseline, or a covariate model.
+  shifting baseline, a covariate model, or a filter along the series
+  (hydroEvents' baseflow separation). The usual filter runs forwards
+  and backwards, so it doesn't stream; a filter baseline has to be
+  one-sided to stream.
   - A baseline is fitted once over the reference period, then applied to
     new steps, as SCI's `fitSCI()`/`transformSCI()` and SPEI's
     `params =` do. That's the baseline object, stored with the def, for
     batch and streaming alike. A trailing k-step accumulation (SPEI's
     `scale`) can come before it, as part of the analysis space. It
-    streams because it uses only the past.
+    streams because it uses only the past. A centred window (lfstat's MA
+    pooling, EflowStats' rolling means) streams only with a delay of
+    half the window, so the def records the alignment.
   - The baseline **type** (Smith et al. 2025: fixed, detrended, shifting,
     adaptation-adjusted, periodically updated) and **reference period**
     are part of the def. Every label is generated from them, never typed
-    by hand.
+    by hand. "The whole record" (lfstat, ClimInd, EflowStats) is a
+    reference period that moves: adding data changes past events.
+    Allow it for parity, record it as such, and use a fixed period for
+    streaming.
   - The type's name alone doesn't pin a baseline down (see the survey):
     - **detrended** needs the trend model (one per series, as heatwave3
       fits it, or one per slot, as MHW-MAD fits it per calendar date),
@@ -222,6 +232,11 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
   multiple of the standard deviation, or a probability (z value) under a
   distribution fitted per slot (SPI, SPEI, SCI). The last can
   extrapolate beyond the sample and handles zero inflation.
+  - A threshold can come from another series: EflowStats' flood
+    threshold is a percentile of annual instantaneous peaks, converted
+    to daily flow. The def records the probability, not a
+    recurrence-interval label, because packages convert between the two
+    differently.
 - **exceedance**: a logical per step, with a direction (high or low) and
   a comparison (`>` vs `>=`: trend.ice found old code mixing the two).
 - **excursion**: a maximal contiguous run of exceedances.
@@ -243,6 +258,10 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
 
     The def names the closing and its parameters. lfstat joins first and
     drops minor events after, the reverse of Hobday's order.
+  - **A minimum on the peak** is another opening: detect at one level
+    and keep the spells whose peak reaches another (hydroEvents'
+    `eventMaxima()`). Unlike hysteresis, the start and end stay at the
+    detection level.
   - **Minimum sizes are fixed values**, never relative to the data set,
     such as lfstat's default of 0.5% of the largest event's volume or
     Ocetrac's area percentile. Relative values change past events as data
@@ -254,7 +273,8 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
 - **censoring**: a spell that touches the start or end of the series,
   or a missing run it can't cross, is flagged as left- or right-censored
   instead of being silently cut short. These are the same flags as
-  trend.ice's `ice_at_start` and `ice_at_end`.
+  trend.ice's `ice_at_start` and `ice_at_end`. EflowStats' `trim`
+  drops such spells instead, which a parity switch could copy.
 - **eligibility**: a mask of steps where the variable means nothing,
   such as SST under ice. Ineligible isn't missing:
   - it's never interpolated across;
@@ -284,14 +304,21 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
   are summaries, not new algorithms), the longest spell, maximum
   intensity and the highest category.
   - **How a spell that crosses the season-year boundary is assigned** is
-    part of the def. The survey found four rules:
+    part of the def. The survey found five rules:
     - by start (heatwaveR, heatwave3);
     - by end (climdex.pcic's CDD/CWD);
     - days split by year (WSDI with `spells.can.span.years`);
     - cut at the boundary, with each piece having to pass the minimum
-      (WSDI's default, from fclimdex).
+      (WSDI's default, from fclimdex);
+    - days split by year, with the spell counted once in each year it
+      touches (EflowStats' DH15 and DL16).
 
-    Counts and durations change with the rule.
+    Counts and durations change with the rule. Every summary follows
+    the def's one rule: EflowStats mixes them, cutting events for its
+    counts and splitting them for its durations.
+  - **Seasons with no spells** count as zero or are left out of means
+    across seasons (EflowStats does both: FL1 and FL3). That's part of
+    the def too.
 
 **Default semantics are clean rules. heatwaveR matching is an option**
 (`parity = "heatwaveR-<version>"`, below). Clean means:
@@ -673,7 +700,8 @@ Packages to cover:
     `climdex.pcic.md`, `climind.md`)*
   - lfstat, SPEI, SCI *(done 2026-11-17 from the source, not run:
     `lfstat.md`, `spei-sci.md`)*
-  - hydroEvents, EflowStats
+  - hydroEvents, EflowStats *(done 2026-11-18 from the source, not run:
+    `hydroEvents.md`, `eflowstats.md`)*
   - extRemes, evd, POT (runs declustering)
   - anomaly (CAPA)
   - iglu
@@ -758,7 +786,10 @@ area metrics as sums, and the ice mask.
    so a compound spell (MHW + low chl, MHW + high SLA, MHW + early
    retreat; cf. Le Grix et al. 2021) is a join on (cell, date). The
    family can do this better than anyone else. Compound work lives in
-   whichever member needs it first.
+   whichever member needs it first. Where one spell follows another
+   instead of overlapping it, the match needs a rule: the reference
+   points, a lag window and its direction, and whether it's one-to-one
+   (hydroEvents' `pairEvents()` is prior art).
 7. **CRAN**, and a conversation with the heatwave3 maintainers
    (heatwaveR is frozen): a complementary engine with parity tests, not
    a fork. Perhaps heatwave3 as a backend for the Hobday presets.

@@ -21,7 +21,8 @@ the source or from running the code.
 | ClimInd 0.1-3 | source read 2026-11-17, not run | [climind.md](climind.md) |
 | lfstat 0.9.15 | source read 2026-11-17, not run | [lfstat.md](lfstat.md) |
 | SPEI 1.8.1, SCI 1.0-3 | source read 2026-11-17, not run | [spei-sci.md](spei-sci.md) |
-| hydroEvents, EflowStats | to do | |
+| hydroEvents 0.13.0 | source read 2026-11-18, not run | [hydroEvents.md](hydroEvents.md) |
+| EflowStats 5.2.0 | source read 2026-11-18, not run | [eflowstats.md](eflowstats.md) |
 | extRemes, evd, POT | to do | |
 | anomaly (CAPA) | to do | |
 | iglu | to do | |
@@ -125,6 +126,32 @@ the source or from running the code.
 21. **CRAN SPEI 1.8.1 returns `-Inf` SPI for zero-precipitation
     periods.** Its zero-probability adjustment is overwritten
     (sbegueria/SPEI#87). The fix is on GitHub (1.9.0) but not on CRAN.
+22. **A filter along time is a baseline type, and the usual one isn't
+    causal.** hydroEvents finds streamflow events on quickflow, after
+    removing baseflow with a Lyne and Hollick filter run forwards,
+    backwards and forwards again. Each step's baseflow depends on later
+    steps, so it can't stream.
+23. **A minimum on the peak is another opening.** hydroEvents'
+    `eventMaxima()` keeps an event only if its peak reaches the
+    threshold, which is applied after the events are separated.
+24. **Matching events across two series needs its own rule.**
+    hydroEvents' `pairEvents()` pairs by start, peak or end within a lag,
+    forwards, backwards or centred, and not one-to-one. That's prior art
+    for compound spells where one follows the other.
+25. **Attribution to years can differ between indices of one package.**
+    In EflowStats, the counts (FH, FL) cut events at the year boundary
+    and the pulse durations (DH15, DL16) split them, so one event is
+    counted in both years. Years with no events count as 0 in FL1 and
+    are dropped in FL3.
+26. **"The whole record" is a moving reference period.** EflowStats,
+    lfstat and ClimInd take thresholds from all the data, so adding a
+    year changes past events. EflowStats' flood threshold also comes
+    from another series (annual instantaneous peaks), and its
+    recurrence-interval labels don't follow one convention.
+27. **EflowStats changed its water-year label in 5.2.0** (2023): the
+    calendar year with most of the months, where before it was always
+    the end year. HIT and EflowStats before 5.0 dropped day 366 in leap
+    years, not 29 February.
 
 Findings 2 to 5 were confirmed by running (`checks/heatwave3.R`, output
 in `checks/heatwave3.out`). The details are in heatwave3.md, "Checked by
