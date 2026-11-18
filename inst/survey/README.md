@@ -19,7 +19,8 @@ the source or from running the code.
 | Ocetrac 0.1.7 | source read 2026-11-17, not run | [ocetrac.md](ocetrac.md) |
 | climdex.pcic 1.2-0 | source read 2026-11-17, not run | [climdex.pcic.md](climdex.pcic.md) |
 | ClimInd 0.1-3 | source read 2026-11-17, not run | [climind.md](climind.md) |
-| lfstat, SPEI, SCI | to do | |
+| lfstat 0.9.15 | source read 2026-11-17, not run | [lfstat.md](lfstat.md) |
+| SPEI 1.8.1, SCI 1.0-3 | source read 2026-11-17, not run | [spei-sci.md](spei-sci.md) |
 | hydroEvents, EflowStats | to do | |
 | extRemes, evd, POT | to do | |
 | anomaly (CAPA) | to do | |
@@ -102,6 +103,28 @@ the source or from running the code.
     year. Its CSDI comparison and GSL minimum differ from its own docs.
     It labels winter by its January year, where climdex.pcic uses the
     December year.
+18. **lfstat has the widest range of closings:**
+    - inter-event time (IT);
+    - inter-event time and the excess volume relative to the deficit so
+      far (IC);
+    - smoothing and detecting again (MA);
+    - sequent peak, a storage rule that lasts until the deficit is repaid
+      (SP).
+
+    It joins first and drops minor events after: closing, then opening.
+19. **lfstat reports two durations and two volumes.** Duration with the
+    pooled gaps and the days below the threshold. The pooled volume, in
+    which the excess between events counts negatively, and the volume
+    below the threshold only. Its default minor-event rule (0.5% of the
+    largest event's volume) depends on the data set.
+20. **SPEI and SCI detect no events.** They define a standardized
+    threshold type: a z value under a distribution fitted per slot over
+    the reference period, after a trailing accumulation. Fitting is
+    separate from applying (`fitSCI`/`transformSCI`, `params =`), which
+    is the stored-baseline pattern.
+21. **CRAN SPEI 1.8.1 returns `-Inf` SPI for zero-precipitation
+    periods.** Its zero-probability adjustment is overwritten
+    (sbegueria/SPEI#87). The fix is on GitHub (1.9.0) but not on CRAN.
 
 Findings 2 to 5 were confirmed by running (`checks/heatwave3.R`, output
 in `checks/heatwave3.out`). The details are in heatwave3.md, "Checked by

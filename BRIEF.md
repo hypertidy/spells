@@ -183,11 +183,19 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
     neighbours, and climdex.pcic uses 365 slots, with 29 February
     sharing 28 February's slot, or 360 slots.
   - So is the season-year label: winter is labelled by its December
-    year in climdex.pcic and by its January year in ClimInd.
+    year in climdex.pcic and by its January year in ClimInd. lfstat
+    makes it explicit for hydrological years: `assign = "majority"`,
+    `"start"` or `"end"`.
 - **baseline**: the expected value per slot. The options are a
   climatology (windowed and smoothed, heatwaveR style), a fixed value, a
   per-season statistic (bloom: the median of that year), a trend-aware or
   shifting baseline, or a covariate model.
+  - A baseline is fitted once over the reference period, then applied to
+    new steps, as SCI's `fitSCI()`/`transformSCI()` and SPEI's
+    `params =` do. That's the baseline object, stored with the def, for
+    batch and streaming alike. A trailing k-step accumulation (SPEI's
+    `scale`) can come before it, as part of the analysis space. It
+    streams because it uses only the past.
   - The baseline **type** (Smith et al. 2025: fixed, detrended, shifting,
     adaptation-adjusted, periodically updated) and **reference period**
     are part of the def. Every label is generated from them, never typed
@@ -210,8 +218,10 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
   - The choice matters most for long records and for projections (Amaya
     et al. 2023, Nature).
 - **threshold**: the level relative to the baseline: a percentile (in the
-  same window), baseline + k, baseline x (1 + p), an absolute value, or a
-  multiple of the standard deviation.
+  same window), baseline + k, baseline x (1 + p), an absolute value, a
+  multiple of the standard deviation, or a probability (z value) under a
+  distribution fitted per slot (SPI, SPEI, SCI). The last can
+  extrapolate beyond the sample and handles zero inflation.
 - **exceedance**: a logical per step, with a direction (high or low) and
   a comparison (`>` vs `>=`: trend.ice found old code mixing the two).
 - **excursion**: a maximal contiguous run of exceedances.
@@ -223,6 +233,20 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
   °C from 1 July. In the south the year runs from July to June and the
   split is at 1 January. That's the same shape as ice advance and
   retreat.
+  - **Closings differ** (lfstat, see the survey):
+    - inter-event time only (`maxGap`; lfstat's IT);
+    - time and a magnitude condition (IC: the excess between events,
+      relative to the deficit so far);
+    - smoothing and detecting again (MA);
+    - a storage rule (sequent peak: the spell lasts until its cumulative
+      deficit is repaid).
+
+    The def names the closing and its parameters. lfstat joins first and
+    drops minor events after, the reverse of Hobday's order.
+  - **Minimum sizes are fixed values**, never relative to the data set,
+    such as lfstat's default of 0.5% of the largest event's volume or
+    Ocetrac's area percentile. Relative values change past events as data
+    is added.
 - **missing data** is a separate policy from sub-threshold gaps, because
   an observation gap isn't a sub-threshold gap. The options are:
   interpolate up to n steps, then count as baseline (heatwaveR); break
@@ -243,6 +267,10 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
 - **metrics** per spell: start, end, peak, duration, intensity (max,
   mean, cumulative, variance), onset and decline rates, the highest
   category reached, and the steps interpolated.
+  - Duration counts the joined gaps, so spells also report the steps
+    actually beyond the threshold (lfstat's `dbt`). Cumulative intensity
+    comes two ways too: with the joined gaps counted, as heatwaveR does,
+    and beyond the threshold only (lfstat's `vbt`).
   - Categories are Hobday 2018 multiples of threshold minus baseline,
     computed per step. The rule is part of the def: floor of the
     multiple, with event days below 1x counted as I. That's what
@@ -643,7 +671,8 @@ Packages to cover:
   - heatwaveR (+ RmarineHeatWaves, archived)
   - climdex.pcic, ClimInd *(done 2026-11-17 from the source, not run:
     `climdex.pcic.md`, `climind.md`)*
-  - lfstat, SPEI, SCI
+  - lfstat, SPEI, SCI *(done 2026-11-17 from the source, not run:
+    `lfstat.md`, `spei-sci.md`)*
   - hydroEvents, EflowStats
   - extRemes, evd, POT (runs declustering)
   - anomaly (CAPA)
