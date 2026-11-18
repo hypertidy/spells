@@ -436,6 +436,34 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
   can filter on it. Missing steps at the very start or end can't be
   interpolated (there's nothing to bracket them), so they censor the
   spell instead.
+- the climatology window is shorter at the ends of the reference
+  period: it uses only the period's own days (heatwaveR 1.0.0,
+  heatwave3, xmhw, xclim);
+- nothing is invented for the baseline: a missing day in the reference
+  period, and slot 60 in a non-leap year, just drop out of the pooled
+  window (heatwave3 for gaps, marineHeatWaves for 29 February). The
+  interpolation of short runs is for detection only;
+- a slot gets a baseline only if at least half of the reference
+  period's days that fall in its window are there. Otherwise it has no
+  baseline, and steps in that slot count as missing. Each preset sets
+  its own share; `hobday2016` uses half. The 31-slot smoothing then
+  uses the slots around it that have a baseline, and the slot itself
+  stays without one;
+- categories are the floor of (x - seas) / (thresh - seas), capped at 4
+  (Hobday 2018, marineHeatWaves, xmhw). Joined gap days get no
+  category, and a spell's category is its highest daily category
+  (`categories(">=", NULL, "none", event = "max")`). A gap day exactly
+  at the threshold gets none too, though the floor of its multiple is 1
+  (marineHeatWaves' formula gives it I), so the steps with a category
+  are exactly the steps beyond the threshold;
+- the rest carries over from the parity work unchanged: a pooled window
+  with the type-7 percentile and the mean, a 31-slot running mean that
+  is periodic over the 366 slots, exceedance as `x > thresh`, the
+  minimum before the join, and no rate on a side the spell is cut on
+  (by the series' end or by a missing run it can't cross). A rate next
+  to an interpolated step uses the interpolated value. The minimum
+  applies to the run as observed: a shorter run beside a cut is
+  dropped, not kept as a censored spell.
 
 **Parity names a version**: `parity = "heatwaveR-0.5.5"`,
 `"heatwaveR-1.0.0"` or `"heatwave3-1.5.0"`. The survey has the full table
@@ -949,8 +977,17 @@ area metrics as sums, and the ice mask.
    cumulative intensity over the steps beyond the threshold only
    (lfstat's `vbt`; relative to the baseline or the threshold is still
    open), cold spells (`direction = "low"`), and heatwaveR's event names
-   and seasons, which are labels. Next: the clean defaults and the
-   presets. Moving
+   and seasons, which are labels. *The clean defaults were decided the
+   same day* (see Decisions), *and implemented*: `hobday2016()` without
+   `parity` runs them. No engine runs these rules, so they're tested
+   against a direct reading of the rules from the dates
+   (`tests/testthat/test-clean.R`), on series built by hand, and against
+   heatwave3's stored climatology away from 29 February (slots 40-80,
+   where filling slot 60 reaches), which the clean baseline matches
+   before rounding. On the stored cases, the clean thresholds differ
+   from heatwave3's by up to 0.008 °C near 29 February and 0.00005 °C
+   elsewhere, and the event days are the same except where short gaps
+   are now interpolated (7 days on `wa_gaps`). Next: the presets. Moving
    trend.sst to clean rules is a separate, visible step, and its labels
    say which rules it uses.
 2. **Generality gate 1 (ice)**: re-express trend.ice's ice season through
@@ -1069,6 +1106,12 @@ really needed for the Southern Ocean.
   1.5.0, so the tests run without any of the three. trend.sst doesn't
   change until spells is ready. The clean defaults are settled before
   the presets are written, not before the parity work.
+- 2026-11-18: **The clean defaults** (see "The model"): the window is
+  shorter at the reference period's ends; reference-period gaps and
+  slot 60 in non-leap years drop out of the window, with nothing
+  invented; a slot needs half its window's possible days (each preset
+  sets its own share); categories are the floor of the multiple, with
+  joined gap days in none and a spell's category its highest day's.
 - 2026-11-18: **heatwave3 is a test oracle only.** spells doesn't depend
   on it, not even in Suggests. Its outputs are generated once by a
   script and stored with the tests, and the Hobday presets run on spells'
@@ -1084,10 +1127,11 @@ really needed for the Southern Ocean.
   generalise beyond S2 to carry L3bin grids?
 - Add `sumww` (sum of squared weights) to the grist schema now, before
   more records are backfilled?
-- How complete must the baseline data be? This is separate from the
-  spell missing policy. A slot's window needs a minimum number of
-  observations before it gets a baseline. Today `mhw_clim()` stops on
-  any NA, which won't work for chl.
+- How complete must the baseline data be? *Settled 2026-11-18 as a
+  def parameter: the share of the reference period's days in a slot's
+  window that must be there, half for `hobday2016`.* Still open: the
+  share for the chl preset, at generality gate 2, where heavy
+  missingness makes it matter.
 - Baseline publishing format: Zarr v3, 366 COGs, or both?
 - Does "Heatwaves" get its own card on the trend landing page, pointing
   to the member tabs?

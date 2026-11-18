@@ -15,44 +15,94 @@
 #'   every step in a spell, joined gaps included), `category` (integer: 0
 #'   outside spells and for steps with no category, 1 to 4 for Hobday
 #'   2018's I to IV) and `anom` (the series minus the baseline, after the
-#'   def's missing-data rule).
+#'   def's missing-data rule: `NA` where a step can't be tested).
 #' @export
 #' @examples
 #' x <- 20 + 2 * sin(2 * pi * seq_len(3653) / 365.25) + rnorm(3653, sd = 0.5)
 #' time <- seq(as.Date("1990-01-01"), by = "day", length.out = 3653)
-#' def <- hobday2016(c("1990-01-01", "1999-12-31"), parity = "heatwaveR-0.5.5")
+#' def <- hobday2016(c("1990-01-01", "1999-12-31"))
 #' m <- spell_mask(x, time, spell_baseline(x, time, def))
 #' sum(m$event)
 spell_mask <- function(x, time, baseline) {
+  p <- prepare_steps(x, time, baseline)
+  def <- baseline$def
+  rules <- def$rules
+  exceed <- p$x > p$thresh
+  exceed[p$open] <- FALSE
+  ev <- matrix(FALSE, nrow(p$x), ncol(p$x))
+  for (j in seq_len(ncol(p$x))) {
+    ev[, j] <- spell_runs(exceed[, j], def$min_duration, def$max_gap,
+                          leading_gap = rules$leading_gap, trailing_gap = rules$trailing_gap,
+                          blocked = p$open[, j])
+  }
+  cat <- step_category(p$x, p$seas, p$thresh, ev, def$category)
+  list(event = ev, category = cat, anom = p$x - p$seas)
+}
+
+## The series, baseline and threshold per step, after the def's
+## missing-data rule:
+##  baseline:    a missing step is set to the baseline, so it's never
+##               beyond it (heatwaveR, heatwave3)
+##  interpolate: a run of max_interp or fewer missing steps with an
+##               observed step on both sides is interpolated linearly
+##               (spells' clean rule); the rest stay missing
+## Also: which steps were missing, which were interpolated, and which
+## are open (can't be tested: still missing, or in a slot without a
+## baseline). No gap is joined across an open step.
+prepare_steps <- function(x, time, baseline) {
   if (!inherits(baseline, "spell_baseline")) stop("`baseline` must be a spell_baseline")
   x <- check_series(x, time)
-  def <- baseline$def
   if (ncol(x) != ncol(baseline$seas)) {
     stop("`x` has ", ncol(x), " series but the baseline was fitted on ", ncol(baseline$seas))
   }
-  rules <- def$rules
+  rules <- baseline$def$rules
   s <- slot_366(time)
   seas <- baseline$seas[s, , drop = FALSE]
   thresh <- baseline$thresh[s, , drop = FALSE]
-  if (!identical(rules$missing, "baseline")) stop("only missing = \"baseline\" is implemented")
-  x[is.na(x)] <- seas[is.na(x)]          # heatwaveR: a missing step is the baseline
-  exceed <- x > thresh
-  ev <- matrix(FALSE, nrow(x), ncol(x))
+  missing <- is.na(x)
+  interpolated <- matrix(FALSE, nrow(x), ncol(x))
+  switch(rules$missing,
+    baseline = {
+      x[missing] <- seas[missing]
+    },
+    interpolate = {
+      x <- interpolate_runs(x, rules$max_interp)
+      interpolated <- missing & !is.na(x)
+    },
+    stop("unknown missing rule \"", rules$missing, "\""))
+  open <- is.na(x) | is.na(seas) | is.na(thresh)
+  list(x = x, seas = seas, thresh = thresh, missing = missing,
+       interpolated = interpolated, open = open)
+}
+
+## Linear interpolation of each run of n or fewer missing steps that has
+## an observed step on both sides, per column.
+interpolate_runs <- function(x, n) {
   for (j in seq_len(ncol(x))) {
-    ev[, j] <- spell_runs(exceed[, j], def$min_duration, def$max_gap,
-                          leading_gap = rules$leading_gap, trailing_gap = rules$trailing_gap)
+    v <- x[, j]
+    na <- is.na(v)
+    if (!any(na) || all(na)) next
+    r <- rle(na)
+    e <- cumsum(r$lengths)
+    s <- e - r$lengths + 1L
+    k <- which(r$values & r$lengths <= n & s > 1L & e < length(v))
+    if (!length(k)) next
+    at <- unlist(lapply(k, function(i) s[i]:e[i]))
+    v[at] <- stats::approx(which(!na), v[!na], xout = at)$y
+    x[, j] <- v
   }
-  cat <- step_category(x, seas, thresh, ev, def$category)
-  list(event = ev, category = cat, anom = x - seas)
+  x
 }
 
 ## Minimum first, then join: runs of at least min_duration exceedances
 ## are spells; a gap of max_gap or fewer steps between two spells joins
-## them. leading_gap / trailing_gap: whether a short gap between the
-## series start and the first spell, or the last spell and the series
-## end, is joined too (heatwaveR 0.5.5 joins the trailing one).
+## them, unless it holds a blocked step (one that can't be tested).
+## leading_gap / trailing_gap: whether a short gap between the series
+## start and the first spell, or the last spell and the series end, is
+## joined too (heatwaveR 0.5.5 joins the trailing one).
 ## This is trend.sst's mhw_event_mask().
-spell_runs <- function(exceed, min_duration, max_gap, leading_gap = FALSE, trailing_gap = FALSE) {
+spell_runs <- function(exceed, min_duration, max_gap, leading_gap = FALSE, trailing_gap = FALSE,
+                       blocked = NULL) {
   n <- length(exceed)
   out <- logical(n)
   r <- rle(exceed)
@@ -66,6 +116,10 @@ spell_runs <- function(exceed, min_duration, max_gap, leading_gap = FALSE, trail
   gap <- !r2$values & r2$lengths <= max_gap
   if (!leading_gap) gap <- gap & e2 > s2[on[1]]
   if (!trailing_gap) gap <- gap & s2 < e2[on[length(on)]]
+  if (!is.null(blocked) && any(blocked)) {
+    cb <- c(0L, cumsum(blocked))
+    gap <- gap & cb[e2 + 1L] == cb[s2]
+  }
   for (k in which(gap)) out[s2[k]:e2[k]] <- TRUE
   out
 }
@@ -83,7 +137,11 @@ step_category <- function(x, seas, thresh, ev, rule) {
     cat <- level_category(x, category_levels(seas, thresh, rule), ">")
   }
   cat[!ev] <- 0
-  if (rule$gap_days == "I") cat[ev & cat == 0] <- 1
+  ## steps in a spell that aren't beyond the threshold (joined gaps): none,
+  ## even at the threshold itself, where the floor of the multiple is 1;
+  ## or I (trend.sst)
+  gap <- ev & !(x > thresh)
+  cat[which(gap)] <- if (rule$gap_days == "I") 1 else 0
   storage.mode(cat) <- "integer"
   cat
 }
@@ -112,7 +170,7 @@ category_levels <- function(seas, thresh, rule) {
 level_category <- function(x, levels, compare) {
   cat <- matrix(0L, nrow(x), ncol(x))
   for (k in seq_along(levels)) {
-    cat[if (compare == ">") x > levels[[k]] else x >= levels[[k]]] <- k
+    cat[which(if (compare == ">") x > levels[[k]] else x >= levels[[k]])] <- k
   }
   cat
 }

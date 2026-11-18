@@ -10,12 +10,13 @@ hobday2016(reference, parity = NULL, category = NULL)
 \item{reference}{The reference period: two dates, the first and last
 day. It must be whole years.}
 
-\item{parity}{The engine and version whose behaviour to reproduce:
-\code{"heatwaveR-0.5.5"}, \code{"heatwaveR-1.0.0"} or \code{"heatwave3-1.5.0"}.
-See \code{\link[=parity_modes]{parity_modes()}}.}
+\item{parity}{\code{NULL} for spells' clean rules, or the engine and
+version whose behaviour to reproduce: \code{"heatwaveR-0.5.5"},
+\code{"heatwaveR-1.0.0"} or \code{"heatwave3-1.5.0"}. See \code{\link[=parity_modes]{parity_modes()}}.}
 
 \item{category}{How each step in a spell gets its category, from
-\code{\link[=categories]{categories()}}. The default is the parity mode's own rule.}
+\code{\link[=categories]{categories()}}. The default is the clean rule, or the parity mode's
+own.}
 }
 \value{
 A \code{spell_def}.
@@ -27,11 +28,31 @@ a 31-day running mean, the 90th percentile as the threshold, at least
 5 days above it, and gaps of 2 days or fewer joined.
 }
 \details{
-Only the parity modes are implemented so far. The clean
-rules (spells' own defaults) come once their open choices are settled;
-until then \code{parity} must be given.
+By default it runs on spells' clean rules:
+\itemize{
+\item the climatology window is shorter at the ends of the reference
+period, using only the period's own days;
+\item nothing is invented for the baseline: a missing day in the
+reference period, and slot 60 (29 February) in a non-leap year,
+drop out of the pooled window;
+\item a slot gets a baseline only if at least half of the reference
+period's days in its window are there; steps in a slot without one
+count as missing;
+\item nothing is rounded;
+\item in detection, a run of 3 or fewer missing steps between two
+observed ones is interpolated linearly. A longer run, or one at
+either end of the series, can't be tested: no gap is joined across
+it, and the spells beside it are cut there (\code{cut_start}, \code{cut_end}
+in \code{\link[=spell_events]{spell_events()}});
+\item gaps are joined only between two spells;
+\item categories are the floor of the multiple, joined gap days get none,
+and a spell's category is its highest step's (\code{\link[=categories]{categories()}}).
+}
+
+\code{parity} reproduces another package's version instead.
 }
 \examples{
+hobday2016(c("1982-01-01", "2011-12-31"))
 hobday2016(c("1982-01-01", "2011-12-31"), parity = "heatwaveR-0.5.5")
 }
 \references{

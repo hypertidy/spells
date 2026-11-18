@@ -28,7 +28,7 @@ series than the baseline was fitted on.
 \examples{
 x <- 20 + 2 * sin(2 * pi * seq_len(3653) / 365.25) + rnorm(3653, sd = 0.5)
 time <- seq(as.Date("1990-01-01"), by = "day", length.out = 3653)
-def <- hobday2016(c("1990-01-01", "1999-12-31"), parity = "heatwaveR-0.5.5")
+def <- hobday2016(c("1990-01-01", "1999-12-31"))
 b <- spell_baseline(x, time, def)
 str(b$thresh)
 }

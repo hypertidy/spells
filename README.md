@@ -10,11 +10,13 @@ products.
 **Status: early.** The design is in [BRIEF.md](BRIEF.md), and the survey
 of other packages behind it in [inst/survey/](inst/survey/). Phase 1 has
 started with parity: spells reproduces heatwaveR 0.5.5 and 1.0.0,
-heatwave3 1.5.0, and the engine in trend.sst's `R/mhw.R`. spells' own clean rules aren't implemented yet.
+heatwave3 1.5.0, and the engine in trend.sst's `R/mhw.R`. spells' own
+clean rules are the default; `parity` names a version to reproduce
+instead.
 
 ```r
 library(spells)
-def <- hobday2016(c("1982-01-01", "2011-12-31"), parity = "heatwaveR-0.5.5")
+def <- hobday2016(c("1982-01-01", "2011-12-31"))   # clean rules; or parity = "heatwaveR-0.5.5"
 b <- spell_baseline(x, time, def)  # x: time x series matrix, or one series
 m <- spell_mask(x, time, b)        # event, category and anomaly per step
 ev <- spell_events(x, time, b, m)  # one row per spell: dates, duration, intensities, rates, category

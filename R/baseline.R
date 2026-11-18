@@ -19,7 +19,7 @@
 #' @examples
 #' x <- 20 + 2 * sin(2 * pi * seq_len(3653) / 365.25) + rnorm(3653, sd = 0.5)
 #' time <- seq(as.Date("1990-01-01"), by = "day", length.out = 3653)
-#' def <- hobday2016(c("1990-01-01", "1999-12-31"), parity = "heatwaveR-0.5.5")
+#' def <- hobday2016(c("1990-01-01", "1999-12-31"))
 #' b <- spell_baseline(x, time, def)
 #' str(b$thresh)
 spell_baseline <- function(x, time, def) {
@@ -57,10 +57,15 @@ clim_window_pooled <- function(x, time, def) {
     arr[slot[k], j, ] <- xb[k, , drop = FALSE]
   }
   ## Slot 60 where it's missing (every non-leap year, and a leap year
-  ## whose 29 February is missing), from its neighbours: the mean of 28
-  ## February and 1 March, or the one that's there, rounded to 2 decimals
-  ## (heatwaveR's .NA2mean on slots 59 to 61; heatwave3 the same). With
-  ## neither there, it stays missing.
+  ## whose 29 February is missing):
+  ##  neighbours: the mean of 28 February and 1 March, or the one that's
+  ##              there, rounded to 2 decimals (heatwaveR's .NA2mean on
+  ##              slots 59 to 61; heatwave3 the same); with neither there,
+  ##              it stays missing
+  ##  omit:       left empty, so non-leap years add nothing to slot 60
+  ##              (spells' clean rule)
+  leap <- is_leap(years)
+  if (!rules$feb29 %in% c("neighbours", "omit")) stop("unknown feb29 rule \"", rules$feb29, "\"")
   if (identical(rules$feb29, "neighbours")) {
     v59 <- arr[59L, , , drop = FALSE]; v61 <- arr[61L, , , drop = FALSE]
     both <- (v59 + v61) / 2
@@ -94,38 +99,70 @@ clim_window_pooled <- function(x, time, def) {
   ##           27-31 December of the year before; the reference period's
   ##           first and last years have nothing there, so their windows
   ##           are shorter (heatwaveR 1.0.0)
+  padded <- pad_slots(arr, half, rules$window_ends)
+  ## where a window is short or has gaps, the statistics use the values it has
+  short <- anyNA(padded)
+  ## Coverage: a slot gets a baseline only if at least this share of the
+  ## reference period's days in its window are there. Its possible days
+  ## are the (slot, year) cells that are dates in the reference period,
+  ## padded as the values are.
+  coverage <- rules$coverage
+  if (!is.null(coverage)) {
+    real <- array(TRUE, c(366L, ny, 1L))
+    real[60L, !leap, 1L] <- identical(rules$feb29, "neighbours")
+    possible <- pad_slots(real, half, rules$window_ends)
+    possible[is.na(possible)] <- FALSE
+  }
+  seas <- thresh <- matrix(NA_real_, 366L, np)
+  for (i in seq_len(366L)) {
+    rows <- i:(i + 2L * half)
+    pool <- matrix(padded[rows, , , drop = FALSE], ncol = np)   # one column per series
+    seas[i, ] <- colMeans(pool, na.rm = short)
+    thresh[i, ] <- matrixStats::colQuantiles(pool, probs = def$threshold$p, type = 7L,
+                                             na.rm = short, useNames = FALSE)
+    if (!is.null(coverage)) {
+      few <- colSums(!is.na(pool)) < coverage * sum(possible[rows, , 1L])
+      seas[i, few] <- NA_real_
+      thresh[i, few] <- NA_real_
+    }
+  }
+  ## a slot without a baseline stays without one; with the clean rules
+  ## the smoothing uses the slots around it that have one
+  skip <- !is.null(coverage)
+  out <- list(seas = running_mean_366(seas, smooth, skip_na = skip),
+              thresh = running_mean_366(thresh, smooth, skip_na = skip))
+  if (!is.null(rules$round)) out <- lapply(out, round, rules$round)
+  out
+}
+
+## Pad the slots by the window's half width at each end, so slot i's
+## window is padded rows i to i + 2 * half (see clim_window_pooled()).
+pad_slots <- function(arr, half, window_ends) {
+  ny <- dim(arr)[2L]
   head_rows <- utils::tail(seq_len(366L), half)
   tail_rows <- utils::head(seq_len(366L), half)
-  padded <- switch(rules$window_ends,
+  switch(window_ends,
     wrap = arr[c(head_rows, seq_len(366L), tail_rows), , , drop = FALSE],
     shorten = {
-      before <- after <- array(NA_real_, c(half, ny, np))
+      before <- after <- array(NA, c(half, ny, dim(arr)[3L]))
+      storage.mode(before) <- storage.mode(after) <- storage.mode(arr)
       if (ny > 1L) {
         before[, -1L, ] <- arr[head_rows, -ny, , drop = FALSE]
         after[, -ny, ] <- arr[tail_rows, -1L, , drop = FALSE]
       }
       abind_rows(before, arr, after)
     },
-    stop("unknown window_ends rule \"", rules$window_ends, "\""))
-  ## where a window is short or has gaps, the statistics use the values it has
-  short <- anyNA(padded)
-  seas <- thresh <- matrix(NA_real_, 366L, np)
-  for (i in seq_len(366L)) {
-    pool <- matrix(padded[i:(i + 2L * half), , , drop = FALSE], ncol = np)   # one column per series
-    seas[i, ] <- colMeans(pool, na.rm = short)
-    thresh[i, ] <- matrixStats::colQuantiles(pool, probs = def$threshold$p, type = 7L,
-                                             na.rm = short, useNames = FALSE)
-  }
-  out <- list(seas = running_mean_366(seas, smooth), thresh = running_mean_366(thresh, smooth))
-  if (!is.null(rules$round)) out <- lapply(out, round, rules$round)
-  out
+    stop("unknown window_ends rule \"", window_ends, "\""))
 }
+
+is_leap <- function(y) (y %% 4L == 0L & y %% 100L != 0L) | y %% 400L == 0L
 
 ## Stack 3-d arrays along their first dimension.
 abind_rows <- function(...) {
   a <- list(...)
   d <- dim(a[[1L]])
-  out <- array(NA_real_, c(sum(vapply(a, function(z) dim(z)[1L], 0L)), d[2L], d[3L]))
+  out <- array(NA, c(sum(vapply(a, function(z) dim(z)[1L], 0L)), d[2L], d[3L]))
+  storage.mode(out) <- storage.mode(a[[1L]])
   at <- 0L
   for (z in a) {
     n <- dim(z)[1L]
@@ -135,12 +172,27 @@ abind_rows <- function(...) {
   out
 }
 
-## Centred running mean of width w over the 366 slots, periodic.
-running_mean_366 <- function(m, w) {
+## Centred running mean of width w over the 366 slots, periodic. A
+## missing slot makes every mean whose window holds it missing (a plain
+## sum, as heatwave3's), or with skip_na the mean is of the slots that
+## are there, and the missing slot stays missing.
+running_mean_366 <- function(m, w, skip_na = FALSE) {
   h <- w %/% 2L
   idx <- c(utils::tail(seq_len(366L), h), seq_len(366L), utils::head(seq_len(366L), h))
-  cs <- rbind(0, matrixStats::colCumsums(m[idx, , drop = FALSE]))
-  (cs[seq_len(366L) + w, , drop = FALSE] - cs[seq_len(366L), , drop = FALSE]) / w
+  mm <- m[idx, , drop = FALSE]
+  lo <- seq_len(366L); hi <- lo + w
+  if (!anyNA(mm)) {
+    cs <- rbind(0, matrixStats::colCumsums(mm))
+    return((cs[hi, , drop = FALSE] - cs[lo, , drop = FALSE]) / w)
+  }
+  ok <- !is.na(mm)
+  mm[!ok] <- 0
+  cs <- rbind(0, matrixStats::colCumsums(mm))
+  cn <- rbind(0, matrixStats::colCumsums(ok * 1))
+  n <- cn[hi, , drop = FALSE] - cn[lo, , drop = FALSE]
+  out <- (cs[hi, , drop = FALSE] - cs[lo, , drop = FALSE]) / n
+  if (skip_na) out[is.na(m) | n == 0] <- NA_real_ else out[n < w] <- NA_real_
+  out
 }
 
 #' @export

@@ -7,17 +7,35 @@
 #' a 31-day running mean, the 90th percentile as the threshold, at least
 #' 5 days above it, and gaps of 2 days or fewer joined.
 #'
-#' Only the parity modes are implemented so far. The clean
-#' rules (spells' own defaults) come once their open choices are settled;
-#' until then `parity` must be given.
+#' By default it runs on spells' clean rules:
+#' * the climatology window is shorter at the ends of the reference
+#'   period, using only the period's own days;
+#' * nothing is invented for the baseline: a missing day in the
+#'   reference period, and slot 60 (29 February) in a non-leap year,
+#'   drop out of the pooled window;
+#' * a slot gets a baseline only if at least half of the reference
+#'   period's days in its window are there; steps in a slot without one
+#'   count as missing;
+#' * nothing is rounded;
+#' * in detection, a run of 3 or fewer missing steps between two
+#'   observed ones is interpolated linearly. A longer run, or one at
+#'   either end of the series, can't be tested: no gap is joined across
+#'   it, and the spells beside it are cut there (`cut_start`, `cut_end`
+#'   in [spell_events()]);
+#' * gaps are joined only between two spells;
+#' * categories are the floor of the multiple, joined gap days get none,
+#'   and a spell's category is its highest step's ([categories()]).
+#'
+#' `parity` reproduces another package's version instead.
 #'
 #' @param reference The reference period: two dates, the first and last
 #'   day. It must be whole years.
-#' @param parity The engine and version whose behaviour to reproduce:
-#'   `"heatwaveR-0.5.5"`, `"heatwaveR-1.0.0"` or `"heatwave3-1.5.0"`.
-#'   See [parity_modes()].
+#' @param parity `NULL` for spells' clean rules, or the engine and
+#'   version whose behaviour to reproduce: `"heatwaveR-0.5.5"`,
+#'   `"heatwaveR-1.0.0"` or `"heatwave3-1.5.0"`. See [parity_modes()].
 #' @param category How each step in a spell gets its category, from
-#'   [categories()]. The default is the parity mode's own rule.
+#'   [categories()]. The default is the clean rule, or the parity mode's
+#'   own.
 #' @return A `spell_def`.
 #' @references Hobday, A. J. et al. (2016). A hierarchical approach to
 #'   defining marine heatwaves. Progress in Oceanography 141, 227-238.
@@ -27,14 +45,11 @@
 #'   heatwaves. Oceanography 31(2), 162-173. \doi{10.5670/oceanog.2018.205}
 #' @export
 #' @examples
+#' hobday2016(c("1982-01-01", "2011-12-31"))
 #' hobday2016(c("1982-01-01", "2011-12-31"), parity = "heatwaveR-0.5.5")
 hobday2016 <- function(reference, parity = NULL, category = NULL) {
   reference <- as_reference(reference)
-  if (is.null(parity)) {
-    stop("spells' clean rules aren't implemented yet; give a parity mode, ",
-         "such as parity = \"heatwaveR-0.5.5\"", call. = FALSE)
-  }
-  mode <- parity_mode(parity)
+  mode <- if (is.null(parity)) clean_mode(max_interp = 3L, coverage = 0.5) else parity_mode(parity)
   if (is.null(category)) category <- mode$category
   if (!inherits(category, "spell_categories")) stop("`category` must come from categories()")
   structure(list(
@@ -69,8 +84,11 @@ hobday2016 <- function(reference, parity = NULL, category = NULL) {
 #'   it is built, or `NULL` for none. heatwaveR rounds to 4.
 #' @param gap_days The category of a step in a spell that is not beyond
 #'   the threshold (a joined gap day, or a missing step counted as
-#'   baseline): `"I"`, as trend.sst does, or `"none"` (category 0), as
-#'   heatwaveR, marineHeatWaves and xmhw do.
+#'   baseline): `"none"` (category 0), as heatwaveR, marineHeatWaves and
+#'   xmhw do, or `"I"`, as trend.sst does. With `"none"`, a step exactly
+#'   at the threshold gets none too, though the floor of its multiple is
+#'   1, so only the steps beyond the threshold have a category
+#'   (marineHeatWaves' formula gives such a step I).
 #' @param event A spell's category, in [spell_events()]: `"max"`, the
 #'   highest category of its steps; or `"share"`, the highest category
 #'   whose share of the spell's steps, rounded to a whole percent, is
@@ -83,9 +101,10 @@ hobday2016 <- function(reference, parity = NULL, category = NULL) {
 #' @return A `spell_categories` rule.
 #' @export
 #' @examples
-#' categories()                                         # trend.sst
+#' categories()                                         # spells' clean rule
+#' categories(gap_days = "I")                           # trend.sst
 #' categories(compare = ">", round = 4, gap_days = "none") # heatwaveR's daily categories
-categories <- function(compare = c(">=", ">"), round = NULL, gap_days = c("I", "none"),
+categories <- function(compare = c(">=", ">"), round = NULL, gap_days = c("none", "I"),
                        event = c("max", "share"), event_compare = c(">=", ">")) {
   compare <- match.arg(compare)
   gap_days <- match.arg(gap_days)
@@ -95,6 +114,26 @@ categories <- function(compare = c(">=", ">"), round = NULL, gap_days = c("I", "
   structure(list(unit = "threshold", max = 4L, compare = compare, round = round,
                  gap_days = gap_days, event = event, event_compare = event_compare),
             class = "spell_categories")
+}
+
+## spells' clean rules, as the same switches the parity modes set. Each
+## preset gives its own interpolation limit and coverage share.
+clean_mode <- function(max_interp, coverage) {
+  list(
+    rules = list(
+      window_ends = "shorten",     # only the reference period's own days
+      feb29 = "omit",              # non-leap years have no slot 60
+      round = NULL,                # nothing rounded
+      reference_missing = "omit",  # a missing day drops out of the window
+      coverage = coverage,         # share of the window's possible days a slot needs
+      missing = "interpolate",     # runs of max_interp or fewer, between observed steps
+      max_interp = as.integer(max_interp),
+      leading_gap = FALSE,         # gaps joined only between two spells
+      trailing_gap = FALSE,
+      rate_neighbour = "observed"  # no rate across a step that can't be tested
+    ),
+    category = categories()
+  )
 }
 
 ## The parity modes. Each names an engine and version and lists the
@@ -181,12 +220,18 @@ as_reference <- function(reference) {
 
 #' @export
 print.spell_def <- function(x, ...) {
-  cat("<spell_def>", x$name, if (!is.null(x$parity)) paste0("(parity ", x$parity, ")"), "\n")
+  cat("<spell_def>", x$name,
+      if (is.null(x$parity)) "(clean rules)" else paste0("(parity ", x$parity, ")"), "\n")
   cat("  reference:", format(x$reference[1]), "to", format(x$reference[2]), "\n")
   cat("  baseline: ", x$baseline$type, "window", x$baseline$window, "smooth", x$baseline$smooth,
       "| threshold:", x$threshold$type, x$threshold$p, "|", x$direction, "\n")
   cat("  spells:    min_duration", x$min_duration, "max_gap", x$max_gap,
       paste0("(", x$order, ")"), "\n")
+  r <- x$rules
+  cat("  missing:  ",
+      switch(r$missing, baseline = "counted as the baseline",
+             interpolate = paste("runs of", r$max_interp, "or fewer interpolated, longer ones cut")),
+      if (!is.null(r$coverage)) paste("| a slot needs", r$coverage, "of its window"), "\n")
   cg <- x$category
   cat("  category:  compare", cg$compare, "round", if (is.null(cg$round)) "none" else cg$round,
       "gap days", cg$gap_days, "| event", cg$event,

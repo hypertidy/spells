@@ -1,5 +1,17 @@
 # spells 0.0.0.9000
 
+* spells' clean rules: `hobday2016()` without `parity` runs them. The
+  climatology window is shorter at the ends of the reference period;
+  missing days in it, and slot 60 in non-leap years, drop out of the
+  window; a slot needs half its window's possible days for a baseline;
+  nothing is rounded; in detection, runs of 3 or fewer missing steps are
+  interpolated, and a longer run, or a slot without a baseline, cuts the
+  spells beside it (`cut_start`, `cut_end`) and is never joined across.
+  `categories()` now defaults to the clean rule: the floor of the
+  multiple, no category for a step that isn't beyond the threshold, and
+  a spell's category its highest step's (`categories(gap_days = "I")`
+  is trend.sst's).
+
 * `spell_events()`: one row per spell, with its start, peak and end,
   duration (and the steps beyond the threshold and missing), whether
   either end of the series cuts it, its intensities relative to the

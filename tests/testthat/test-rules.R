@@ -27,16 +27,22 @@ test_that("category rules", {
   seas <- matrix(0, 6, 1); thresh <- matrix(1, 6, 1)
   x <- matrix(c(0.5, 1, 1.5, 2, 3.2, 9), 6, 1)
   ev <- matrix(TRUE, 6, 1)
-  expect_identical(step_category(x, seas, thresh, ev, categories())[, 1], c(1L, 1L, 1L, 2L, 3L, 4L))
+  ## trend.sst: the floor of the multiple, gap days in I
+  tsst <- categories(gap_days = "I")
+  expect_identical(step_category(x, seas, thresh, ev, tsst)[, 1], c(1L, 1L, 1L, 2L, 3L, 4L))
+  ## clean: the same floor, and no category for a step that isn't beyond
+  ## the threshold, even at it
+  expect_identical(step_category(x, seas, thresh, ev, categories())[, 1], c(0L, 0L, 1L, 2L, 3L, 4L))
   expect_identical(step_category(x, seas, thresh, ev, categories(">", 4, "none"))[, 1],
                    c(0L, 0L, 1L, 1L, 3L, 4L))
   ev[2] <- FALSE
-  expect_identical(step_category(x, seas, thresh, ev, categories())[2, 1], 0L)
+  expect_identical(step_category(x, seas, thresh, ev, tsst)[2, 1], 0L)
 })
 
-test_that("definitions refuse what isn't implemented", {
+test_that("definitions: clean by default, parity by name", {
   ref <- c("1982-01-01", "2011-12-31")
-  expect_error(hobday2016(ref), "clean rules")
+  expect_s3_class(hobday2016(ref), "spell_def")
+  expect_null(hobday2016(ref)$parity)
   expect_error(hobday2016(ref, parity = "heatwaveR-9"), "unknown parity mode")
   expect_error(hobday2016(c("1982-02-01", "2011-12-31"), parity = "heatwaveR-0.5.5"), "whole years")
   expect_s3_class(hobday2016(ref, parity = "heatwaveR-0.5.5"), "spell_def")

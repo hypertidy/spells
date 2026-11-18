@@ -8,16 +8,17 @@
 #' category.
 #'
 #' Every step in a spell is measured, joined gaps included, after the
-#' def's missing-data rule (a missing step counts as the baseline). The
-#' peak is the first step of largest anomaly.
+#' def's missing-data rule (with the clean rules a short run of missing
+#' steps is interpolated; with the parity modes a missing step counts as
+#' the baseline). The peak is the first step of largest anomaly.
 #'
 #' The rate of onset is the peak anomaly less the anomaly midway between
 #' the first step and the step before it, over the steps from that
 #' midpoint to the peak; the rate of decline is the same at the end
-#' (Hobday et al. 2016). A spell cut by either end of the series
-#' (`cut_start`, `cut_end`) has no rate on that side. Whether a rate is
-#' given when the step outside the spell is missing is a rule of the
-#' def's parity mode: heatwaveR counts that step as the baseline;
+#' (Hobday et al. 2016). A spell cut by either end of the series, or by
+#' steps that can't be tested (`cut_start`, `cut_end`), has no rate on
+#' that side. With the parity modes, a missing step just outside the
+#' spell is a rule of the mode: heatwaveR counts it as the baseline;
 #' heatwave3 gives no rate.
 #'
 #' @param x,time The series and dates given to [spell_mask()].
@@ -29,10 +30,11 @@
 #'   * `start`, `peak`, `end`: dates; `index_start`, `index_peak`,
 #'     `index_end`: rows of `x`;
 #'   * `duration`: steps in the spell, joined gaps included; `n_beyond`:
-#'     those beyond the threshold; `n_missing`: those missing in `x`;
+#'     those beyond the threshold; `n_missing`: those missing in `x`
+#'     (interpolated, or counted as the baseline);
 #'   * `cut_start`, `cut_end`: the spell touches the first or last step,
-#'     so it may have begun earlier or go on (at the end, a provisional
-#'     tail);
+#'     or steps that can't be tested, so it may have begun earlier or go
+#'     on (at the series' end, a provisional tail);
 #'   * `intensity_max`, `intensity_mean`, `intensity_sd`,
 #'     `intensity_cumulative`: of the anomaly (the series minus the
 #'     baseline); then the same with suffix `_thresh` (the series minus
@@ -49,14 +51,16 @@
 #' @examples
 #' x <- 20 + 2 * sin(2 * pi * seq_len(3653) / 365.25) + rnorm(3653, sd = 0.5)
 #' time <- seq(as.Date("1990-01-01"), by = "day", length.out = 3653)
-#' def <- hobday2016(c("1990-01-01", "1999-12-31"), parity = "heatwaveR-0.5.5")
+#' def <- hobday2016(c("1990-01-01", "1999-12-31"))
 #' b <- spell_baseline(x, time, def)
 #' m <- spell_mask(x, time, b)
 #' ev <- spell_events(x, time, b, m)
 #' head(ev[c("start", "end", "duration", "intensity_max", "category")])
 spell_events <- function(x, time, baseline, mask) {
-  if (!inherits(baseline, "spell_baseline")) stop("`baseline` must be a spell_baseline")
-  x <- check_series(x, time)
+  p <- prepare_steps(x, time, baseline)
+  x <- p$x
+  seas <- p$seas
+  thresh <- p$thresh
   ev <- mask$event
   if (!is.logical(ev) || !identical(dim(ev), dim(x))) {
     stop("`mask` must be spell_mask()'s result for this `x`")
@@ -64,13 +68,12 @@ spell_events <- function(x, time, baseline, mask) {
   def <- baseline$def
   rules <- def$rules
   rule <- def$category
-  s <- slot_366(time)
-  seas <- baseline$seas[s, , drop = FALSE]
-  thresh <- baseline$thresh[s, , drop = FALSE]
-  if (!identical(rules$missing, "baseline")) stop("only missing = \"baseline\" is implemented")
-  miss <- is.na(x)
-  x[miss] <- seas[miss]
+  miss <- p$missing
+  ## a rate's step outside the spell: "observed" gives no rate across a
+  ## missing step that wasn't interpolated, or one that can't be tested
+  no_rate <- p$open | (miss & !p$interpolated)
   beyond <- x > thresh
+  beyond[p$open] <- FALSE
   ecat <- switch(rule$event,
     max = mask$category,
     share = level_category(x, category_levels(seas, thresh, rule), rule$event_compare),
@@ -88,10 +91,10 @@ spell_events <- function(x, time, baseline, mask) {
     pk <- which.max(an)
     imax <- an[pk]
     ## heatwaveR's order of operations: 0.5 * (A + B - C)
-    onset <- if (a > 1L && (neighbour == "filled" || !miss[a - 1L, j])) {
+    onset <- if (a > 1L && (neighbour == "filled" || !no_rate[a - 1L, j])) {
       (imax - 0.5 * (an[1L] + x[a - 1L, j] - seas[a - 1L, j])) / (pk - 1 + 0.5)
     } else NA_real_
-    decline <- if (b < n && (neighbour == "filled" || !miss[b + 1L, j])) {
+    decline <- if (b < n && (neighbour == "filled" || !no_rate[b + 1L, j])) {
       (imax - 0.5 * (an[length(t)] + x[b + 1L, j] - seas[b + 1L, j])) / (length(t) - pk + 0.5)
     } else NA_real_
     cnt <- tabulate(ecat[t, j], nbins = 4L)
@@ -114,8 +117,8 @@ spell_events <- function(x, time, baseline, mask) {
   category <- if (rule$event == "share") {
     ## heatwaveR's category(): the highest category whose share of the
     ## spell's steps, rounded to a whole percent, is above zero; I if none
-    p <- round(cnt / duration * 100, 0)
-    ifelse(p[, 4L] > 0, 4L, ifelse(p[, 3L] > 0, 3L, ifelse(p[, 2L] > 0, 2L, 1L)))
+    pct <- round(cnt / duration * 100, 0)
+    ifelse(pct[, 4L] > 0, 4L, ifelse(pct[, 3L] > 0, 3L, ifelse(pct[, 2L] > 0, 2L, 1L)))
   } else {
     vapply(seq_len(nrow(sp)), function(i) {
       max(mask$category[sp$index_start[i]:sp$index_end[i], sp$series[i]])
@@ -131,6 +134,12 @@ spell_events <- function(x, time, baseline, mask) {
                     n_beyond = as.integer(vals[, "n_beyond"]),
                     n_missing = as.integer(vals[, "n_missing"]),
                     cut_start = sp$index_start == 1L, cut_end = sp$index_end == n)
+  ## cut by steps that can't be tested
+  j <- sp$series
+  at <- sp$index_start > 1L
+  out$cut_start[at] <- p$open[cbind(sp$index_start[at] - 1L, j[at])]
+  at <- sp$index_end < n
+  out$cut_end[at] <- p$open[cbind(sp$index_end[at] + 1L, j[at])]
   out <- cbind(out, as.data.frame(vals[, metric, drop = FALSE]))
   out$category <- as.integer(category)
   for (nm in colnames(cnt)) out[[nm]] <- as.integer(cnt[, nm])

@@ -9,7 +9,7 @@ for (nm in names(cases)) {
     k <- cases[[nm]]
     g <- golden$cases[[nm]]
     skip_if(is.null(g), "R/mhw.R stops on a gap in the reference period")
-    def <- hobday2016(k$reference, parity = "heatwaveR-0.5.5", category = categories())
+    def <- hobday2016(k$reference, parity = "heatwaveR-0.5.5", category = categories(gap_days = "I"))
     r <- run_case(k, def)
     expect_identical(r$baseline$seas, g$seas)
     expect_identical(r$baseline$thresh, g$thresh)

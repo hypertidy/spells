@@ -20,7 +20,7 @@ A list of time x series matrices: \code{event} (logical, \code{TRUE} on
 every step in a spell, joined gaps included), \code{category} (integer: 0
 outside spells and for steps with no category, 1 to 4 for Hobday
 2018's I to IV) and \code{anom} (the series minus the baseline, after the
-def's missing-data rule).
+def's missing-data rule: \code{NA} where a step can't be tested).
 }
 \description{
 Applies a fitted baseline to a series by slot, finds the steps beyond
@@ -30,7 +30,7 @@ and gives each step in a spell its category.
 \examples{
 x <- 20 + 2 * sin(2 * pi * seq_len(3653) / 365.25) + rnorm(3653, sd = 0.5)
 time <- seq(as.Date("1990-01-01"), by = "day", length.out = 3653)
-def <- hobday2016(c("1990-01-01", "1999-12-31"), parity = "heatwaveR-0.5.5")
+def <- hobday2016(c("1990-01-01", "1999-12-31"))
 m <- spell_mask(x, time, spell_baseline(x, time, def))
 sum(m$event)
 }

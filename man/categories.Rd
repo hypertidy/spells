@@ -7,7 +7,7 @@
 categories(
   compare = c(">=", ">"),
   round = NULL,
-  gap_days = c("I", "none"),
+  gap_days = c("none", "I"),
   event = c("max", "share"),
   event_compare = c(">=", ">")
 )
@@ -24,8 +24,11 @@ it is built, or \code{NULL} for none. heatwaveR rounds to 4.}
 
 \item{gap_days}{The category of a step in a spell that is not beyond
 the threshold (a joined gap day, or a missing step counted as
-baseline): \code{"I"}, as trend.sst does, or \code{"none"} (category 0), as
-heatwaveR, marineHeatWaves and xmhw do.}
+baseline): \code{"none"} (category 0), as heatwaveR, marineHeatWaves and
+xmhw do, or \code{"I"}, as trend.sst does. With \code{"none"}, a step exactly
+at the threshold gets none too, though the floor of its multiple is
+1, so only the steps beyond the threshold have a category
+(marineHeatWaves' formula gives such a step I).}
 
 \item{event}{A spell's category, in \code{\link[=spell_events]{spell_events()}}: \code{"max"}, the
 highest category of its steps; or \code{"share"}, the highest category
@@ -48,6 +51,7 @@ severe, IV (4x and above) extreme. Packages differ in how a step is
 compared with the multiples and in what joined gap days get.
 }
 \examples{
-categories()                                         # trend.sst
+categories()                                         # spells' clean rule
+categories(gap_days = "I")                           # trend.sst
 categories(compare = ">", round = 4, gap_days = "none") # heatwaveR's daily categories
 }

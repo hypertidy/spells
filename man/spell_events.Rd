@@ -21,10 +21,11 @@ time:
 \item \code{start}, \code{peak}, \code{end}: dates; \code{index_start}, \code{index_peak},
 \code{index_end}: rows of \code{x};
 \item \code{duration}: steps in the spell, joined gaps included; \code{n_beyond}:
-those beyond the threshold; \code{n_missing}: those missing in \code{x};
+those beyond the threshold; \code{n_missing}: those missing in \code{x}
+(interpolated, or counted as the baseline);
 \item \code{cut_start}, \code{cut_end}: the spell touches the first or last step,
-so it may have begun earlier or go on (at the end, a provisional
-tail);
+or steps that can't be tested, so it may have begun earlier or go
+on (at the series' end, a provisional tail);
 \item \code{intensity_max}, \code{intensity_mean}, \code{intensity_sd},
 \code{intensity_cumulative}: of the anomaly (the series minus the
 baseline); then the same with suffix \verb{_thresh} (the series minus
@@ -47,22 +48,23 @@ category.
 }
 \details{
 Every step in a spell is measured, joined gaps included, after the
-def's missing-data rule (a missing step counts as the baseline). The
-peak is the first step of largest anomaly.
+def's missing-data rule (with the clean rules a short run of missing
+steps is interpolated; with the parity modes a missing step counts as
+the baseline). The peak is the first step of largest anomaly.
 
 The rate of onset is the peak anomaly less the anomaly midway between
 the first step and the step before it, over the steps from that
 midpoint to the peak; the rate of decline is the same at the end
-(Hobday et al. 2016). A spell cut by either end of the series
-(\code{cut_start}, \code{cut_end}) has no rate on that side. Whether a rate is
-given when the step outside the spell is missing is a rule of the
-def's parity mode: heatwaveR counts that step as the baseline;
+(Hobday et al. 2016). A spell cut by either end of the series, or by
+steps that can't be tested (\code{cut_start}, \code{cut_end}), has no rate on
+that side. With the parity modes, a missing step just outside the
+spell is a rule of the mode: heatwaveR counts it as the baseline;
 heatwave3 gives no rate.
 }
 \examples{
 x <- 20 + 2 * sin(2 * pi * seq_len(3653) / 365.25) + rnorm(3653, sd = 0.5)
 time <- seq(as.Date("1990-01-01"), by = "day", length.out = 3653)
-def <- hobday2016(c("1990-01-01", "1999-12-31"), parity = "heatwaveR-0.5.5")
+def <- hobday2016(c("1990-01-01", "1999-12-31"))
 b <- spell_baseline(x, time, def)
 m <- spell_mask(x, time, b)
 ev <- spell_events(x, time, b, m)
