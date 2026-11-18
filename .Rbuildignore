@@ -1,1 +1,4 @@
 ^BRIEF\.md$
+^data-raw$
+^README\.Rmd$
+^\.github$

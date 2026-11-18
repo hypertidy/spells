@@ -1,0 +1,21 @@
+Package: spells
+Title: Persistent Excursions Beyond a Baseline-Relative Threshold
+Version: 0.0.0.9000
+Authors@R: person("Michael", "Sumner", email = "mdsumner@gmail.com",
+    role = c("aut", "cre"))
+Description: A spell is a run of a series beyond a threshold set relative
+    to a baseline, kept if it persists: a marine heatwave (Hobday et al.
+    2016) is one, and so are cold spells, sea ice seasons, blooms and
+    dry spells. The engine runs over a whole time x series matrix at
+    once. Definitions are objects, and the behaviour of other packages
+    is reproduced as named, versioned parity modes, tested against their
+    stored outputs.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+Imports: matrixStats
+Suggests: testthat (>= 3.0.0)
+Config/testthat/edition: 3
+URL: https://github.com/hypertidy/spells
+BugReports: https://github.com/hypertidy/spells/issues
+Config/roxygen2/version: 8.1.1

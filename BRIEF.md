@@ -1,7 +1,7 @@
 # spells: brief
 
-Draft 2026-11-17. Planning only, no code yet. This is the design brief
-for hypertidy/spells. It sits at the repo root, and `.Rbuildignore` keeps
+Draft 2026-11-17; Phase 1 started 2026-11-18 (the heatwaveR 0.5.5
+parity engine, below). This is the design brief for hypertidy/spells. It sits at the repo root, and `.Rbuildignore` keeps
 it out of package builds.
 
 A **spell** is a persistent excursion of a series beyond a threshold set
@@ -367,8 +367,12 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
     level counts only if it forms its own spell, with its own duration
     rule (iglu's level 2 and "level 1 exclusive" episodes). The def names
     which. It also names the category of joined gap days below the
-    threshold: none in marineHeatWaves and xmhw, so their category
-    durations sum to less than the spell's; category I in trend.sst.
+    threshold: none in heatwaveR's daily categories, marineHeatWaves and
+    xmhw, so their category durations sum to less than the spell's;
+    category I in trend.sst. heatwaveR's daily categories are strict
+    (`>`), against levels it builds by adding the rounded distance to
+    the threshold and rounding again, where trend.sst takes the floor
+    of the ratio (`>=`). spells' `categories()` has both.
   - The category **unit** is its own parameter, defaulting to the
     detection threshold. The Hobday presets fix it at p90 minus the
     baseline. MHW-MAD's 95th and 99th percentile products use their own
@@ -899,7 +903,20 @@ area metrics as sums, and the ice mask.
    - ship the `hobday2016`, `hobday2018` and `schlegel2021` presets.
 
    trend.sst then depends on it with `parity = "heatwaveR-0.5.5"`, so
-   nothing it publishes changes and the tests stay green. Moving
+   nothing it publishes changes and the tests stay green.
+
+   *First milestone done 2026-11-18:* `hobday2016(parity =
+   "heatwaveR-0.5.5")`, `spell_baseline()`, `spell_mask()` and
+   `categories()`, ported from `R/mhw.R`. They reproduce heatwaveR
+   0.5.5's climatology, event days and daily categories on seven cases
+   (heatwaveR's three OISST series, a 1991-2020 reference, gaps, series
+   ending after and inside an event, detection on a stored baseline),
+   and trend.sst's `R/mhw.R` bit for bit with `categories()`. The
+   stored outputs of heatwaveR 1.0.0 and heatwave3 1.5.0 for the same
+   cases are in `tests/testthat/fixtures/`, ready for their modes
+   (`data-raw/golden.R` makes them all). Next: the 1.0.0 and heatwave3
+   modes, event metrics (`spell_events()`), and the fill of
+   reference-period gaps. Moving
    trend.sst to clean rules is a separate, visible step, and its labels
    say which rules it uses.
 2. **Generality gate 1 (ice)**: re-express trend.ice's ice season through
@@ -1011,6 +1028,17 @@ really needed for the Southern Ocean.
 - 2026-11-17: **missing data under clean rules**: interpolate runs of n
   or fewer missing steps, then break and censor (see "The model"). n is
   part of each definition.
+- 2026-11-18: **Phase 1 starts parity first**. The first milestone is
+  trend.sst's `R/mhw.R` running in spells as
+  `parity = "heatwaveR-0.5.5"`. Alongside it go fixed input series with
+  stored outputs from heatwaveR 0.5.5, heatwaveR 1.0.0 and heatwave3
+  1.5.0, so the tests run without any of the three. trend.sst doesn't
+  change until spells is ready. The clean defaults are settled before
+  the presets are written, not before the parity work.
+- 2026-11-18: **heatwave3 is a test oracle only.** spells doesn't depend
+  on it, not even in Suggests. Its outputs are generated once by a
+  script and stored with the tests, and the Hobday presets run on spells'
+  own engine.
 
 
 ## Open questions
@@ -1029,12 +1057,9 @@ really needed for the Southern Ocean.
 - Baseline publishing format: Zarr v3, 366 COGs, or both?
 - Does "Heatwaves" get its own card on the trend landing page, pointing
   to the member tabs?
-- heatwave3: an oracle only (Suggests), or a backend for the Hobday
-  presets? And which parity version is the default for new trend.sst
-  products: 0.5.5 (continuity), 1.0.0, or heatwave3? The survey leans
-  towards an oracle. heatwave3 has no in-memory path to event metrics,
-  so as a backend it would need temporary NetCDF files. Golden outputs
-  stored in the repo need neither package installed.
+- Which parity version is the default for new trend.sst products: 0.5.5
+  (continuity), 1.0.0, or heatwave3? (heatwave3's own role is decided:
+  an oracle only, see Decisions.)
 - The region registry: confirm it goes in the family home (trend). Is
   it only data (polygons plus cell sets), or does it get a small R
   helper?

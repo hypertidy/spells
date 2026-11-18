@@ -54,6 +54,13 @@ the heatwave3 package.
 - **The Moderate category counts days with `>=`** in both. The summary's
   "0.5.3.x changed `>` to `>=`" is already in 0.5.5, so it makes no
   difference between these two versions.
+- **Daily categories are a different rule from the event counts.**
+  `category(climatology = TRUE)` is strict (`>`), against levels built
+  as `diff = round(thresh - seas, 4)`, `thresh_2x = round(thresh +
+  diff, 4)`, and so on up to 4x. Joined gap days below the threshold,
+  and missing days, get no category. Checked for 0.5.5: spells' parity
+  mode reproduces it on every case of its parity tests
+  (`tests/testthat/test-parity-heatwaveR-0.5.5.R`).
 - **Climatology length:** at least 1095 days, and the period must lie
   inside the data. Otherwise `ts2clm()` stops with an error.
 
