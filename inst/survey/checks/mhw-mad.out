@@ -1,0 +1,88 @@
+Fetched (or read from the cache):
+   13 files in the cache; 9 pixels
+
+1. distinct cat_HW values (WMO 90p 5d): -4.697e-07, 0.9999843, 1.999969, 3.000015 
+   largest distance from a whole number: 3.1e-05 
+   anomalies identical in the 90p 10d and 95p 5d WMO datasets: TRUE 
+
+2. Days where (cat_HW > 0) differs from each rule, WMO 90p 5d, 9 pixels x 731 days
+   (in brackets: leaving out runs that touch the ends of the 2015-2016 window):
+   slot_doy, anom >= threshHW:  rule A 100 (91); rule B 4 (4); rule C 16 (16) 
+   slot_doy, anom > threshHW:  rule A 100 (91); rule B 4 (4); rule C 16 (16) 
+   slot_366, anom >= threshHW:  rule A 97 (88); rule B 0 (0); rule C 12 (12) 
+   slot_366, anom > threshHW:  rule A 97 (88); rule B 0 (0); rule C 12 (12) 
+   days with anom exactly equal to threshHW (where >= and > would differ): 0 
+   rule A: runs >= 5 first, then gaps <= 2 joined between them (marineHeatWaves);
+   rule B: gaps <= 2 bridged first, then the span >= 5; rule C: as B, counting only days above
+
+   per pixel, slot_366 and >=:
+              px inner_mismatch.A inner_mismatch.B inner_mismatch.C
+ 150.025,-43.025                7                0                0
+ 152.025,-43.025                6                0                0
+ 154.025,-43.025                4                0                0
+ 150.025,-41.025                5                0                0
+ 152.025,-41.025               14                0                8
+ 154.025,-41.025               15                0                4
+ 150.025,-39.025               16                0                0
+ 152.025,-39.025                9                0                0
+ 154.025,-39.025               12                0                0
+
+   bridged gap days and how many of them have cat_HW == 0:
+ rule gap_days gap_cat0
+    A       27       27
+    B       70       70
+    C       65       65
+
+3. Longer minimum durations (slot_366, >=), mismatched days (leaving out the window ends):
+   10 days:  rule A 182 (146); rule B 15 (0); rule C 51 (27) 
+   30 days:  rule A 138 (104); rule B 34 (0); rule C 34 (0) 
+4. WMO 90p: event days 1942; cat == min(4, floor(anom / threshHW)): 1942; max ratio 3.49
+   floor_ratio
+cat    1    2    3
+  1 1603    0    0
+  2    0  300    0
+  3    0    0   39
+4. WMO 95p (unit: p95 minus the mean): event days 972; cat == min(4, floor(anom / threshHW)): 972; max ratio 2.37
+   floor_ratio
+cat   1   2
+  1 942   0
+  2   0  30
+   95p event days whose category in units of p90 minus the mean would differ: 321 of 972 
+
+5. Moving windows: 1986-2015 (file year 2015) and 1987-2016 (file year 2016)
+   anomaly change from 31 Dec 2015 to 1 Jan 2016 in the moving products vs the WMO product:
+   150.025,-43.025: moving -0.719, WMO -0.688
+   152.025,-43.025: moving -0.143, WMO -0.131
+   154.025,-43.025: moving +0.149, WMO +0.152
+   150.025,-41.025: moving -0.112, WMO -0.035
+   152.025,-41.025: moving -0.234, WMO -0.168
+   154.025,-41.025: moving -0.149, WMO -0.107
+   150.025,-39.025: moving +0.077, WMO +0.099
+   152.025,-39.025: moving +0.031, WMO +0.087
+   154.025,-39.025: moving -0.047, WMO -0.004
+   Runs from 1 Jan 2016 in the 1987-2016 product (its own anomalies and threshold):
+   150.025,-43.025: first run 7 days from 1 Jan; flagged in the product: TRUE; by rule B within 2016 alone: TRUE
+   152.025,-43.025: first run 3 days from 1 Jan; flagged in the product: TRUE; by rule B within 2016 alone: TRUE
+   154.025,-43.025: first run 13 days from 1 Jan; flagged in the product: TRUE; by rule B within 2016 alone: TRUE
+   150.025,-41.025: first run 26 days from 1 Jan; flagged in the product: TRUE; by rule B within 2016 alone: TRUE
+   154.025,-41.025: first run 3 days from 1 Jan; flagged in the product: TRUE; by rule B within 2016 alone: TRUE
+   154.025,-39.025: first run 2 days from 1 Jan; flagged in the product: TRUE; by rule B within 2016 alone: FALSE
+   154.025,-39.025, 1 Jan 2016 anomaly rebuilt from the WMO product: 1.4125; the 1987-2016 product's: 1.4128
+   20 Dec 2015 - 4 Jan 2016: above the 1987-2016 threshold  xxxxxxxxxxxxxx.. 
+                             cat_HW > 0 in the moving files  cccccccccccccc.. 
+   cat_HW on 31 Dec 2015 (1986-2015) and 1 Jan 2016 (1987-2016) per pixel:
+              px cat_31dec2015 cat_1jan2016
+ 150.025,-39.025             0            0
+ 150.025,-41.025             1            1
+ 150.025,-43.025             1            1
+ 152.025,-39.025             0            0
+ 152.025,-41.025             0            0
+ 152.025,-43.025             1            1
+ 154.025,-39.025             1            1
+ 154.025,-41.025             1            1
+ 154.025,-43.025             1            1
+
+6. Slot 60 against the mean of slots 59 and 61, WMO 90p climatology, max difference over pixels:
+   mean     1.50e-03  (largest day-to-day change over slots 50-70: 2.75e-02)
+   p90      1.25e-03  (largest day-to-day change over slots 50-70: 3.00e-02)
+   threshHW 1.51e-03  (largest day-to-day change over slots 50-70: 1.96e-02)

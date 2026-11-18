@@ -276,7 +276,10 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
       allowance, that's hysteresis).
 
     The def names the closing and its parameters. lfstat joins first and
-    drops minor events after, the reverse of Hobday's order. A closing
+    drops minor events after, the reverse of Hobday's order. So does
+    MHW-MAD (checked against its data), counting the gap days toward its
+    minimum. The two orders differ on about 4.5% of event days at Tasman
+    pixels, so the order is a def parameter. A closing
     estimated from the data (intervals declustering, POT's `fitexi()`)
     is fitted once and stored in the def, like a baseline. Gaps count
     steps; for irregular series the def could give a duration instead
@@ -495,6 +498,12 @@ st <- spell_state(...); spell_step(st, x_today, b, def)   # streaming
     detection still reads the raw SST (see the survey). MHW-MAD's
     detrended products are data with no code, giving per-day anomalies
     for one trend model (per calendar date over 1982–2024).
+  - MHW-MAD's per-day categories are reproduced exactly from its own
+    anomalies and thresholds (checked at nine Tasman pixels): 366-day
+    slots, join-first order, bridged days in category 0, floors of the
+    product's own threshold unit. A `hayward2026` per-step parity test
+    can use them as stored data. Testing its climatology needs the CCI
+    SST.
   - `schlegel2021` (cold spells): parity, as for Hobday.
   - `massom2013`: trend.ice's current COGs, exactly.
   - `siegel2002`: published bloom timing.
@@ -807,7 +816,8 @@ Packages to cover:
   `heatwaveR-versions.md` and `checks/`).* MHW-MAD (DMI, ESSD 2026: fixed, shifting and
   detrended baselines) and Ocetrac (objects) sit alongside. *Done
   2026-11-17: `mhw-mad.md` (from the paper and data README; the code is
-  under embargo) and `ocetrac.md` (from the source, not run).*
+  under embargo; checked against its ERDDAP data 2026-11-18) and
+  `ocetrac.md` (from the source, not run).*
 - R:
   - heatwaveR (+ RmarineHeatWaves, archived)
   - climdex.pcic, ClimInd *(done 2026-11-17 from the source:

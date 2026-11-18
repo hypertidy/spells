@@ -15,7 +15,7 @@ the source or from running the code.
 |---|---|---|
 | heatwave3 1.5.0 | source read and run 2026-11-17 | [heatwave3.md](heatwave3.md) |
 | heatwaveR 1.0.0 vs 0.5.5 | source diff and run 2026-11-17 | [heatwaveR-versions.md](heatwaveR-versions.md) |
-| MHW-MAD (DMI, ESSD 2026) | paper and data README read 2026-11-17; code under embargo | [mhw-mad.md](mhw-mad.md) |
+| MHW-MAD (DMI, ESSD 2026) | paper and data README read 2026-11-17; code under embargo; checked against its data 2026-11-18 | [mhw-mad.md](mhw-mad.md) |
 | Ocetrac 0.1.7 | source read 2026-11-17, not run | [ocetrac.md](ocetrac.md) |
 | climdex.pcic 1.2-0 | source read 2026-11-17; checks run 2026-11-18 | [climdex.pcic.md](climdex.pcic.md) |
 | ClimInd 0.1-3 | source read 2026-11-17, not run | [climind.md](climind.md) |
@@ -68,13 +68,25 @@ the source or from running the code.
 10. **MHW-MAD's shifting baseline is a trailing 30-year window that
     includes the year being assessed**, moving one year at a time. The
     paper doesn't say how events across the new year meet the two
-    climatologies.
+    climatologies. The data shows detection doesn't restart on
+    1 January (checked).
 11. **MHW-MAD ties the category unit to the detection percentile**: its
     95th and 99th percentile products use their own threshold minus the
     mean. So the category unit is a def parameter of its own.
 12. **MHW-MAD is data with no code** (it's under embargo). It can be an
     oracle for per-day state on ESA CCI input, but not for event metrics.
     It has no ice mask, and no detrended category dataset is listed.
+    Checked against its data at nine Tasman pixels for 2015–2016, its
+    daily categories are reproduced exactly from its own anomalies and
+    thresholds with:
+    - 366-day slots;
+    - gaps of up to 2 days bridged **before** the 5-day minimum, gap
+      days counting toward it;
+    - bridged days in category 0;
+    - `floor(anom / threshHW)`, in each product's own threshold unit.
+
+    Its categories are stored up to 3 × 10⁻⁵ off whole numbers, so
+    readers must round.
 13. **Ocetrac tracks a cleaned exceedance mask, as heatwave3's blobs do**,
     with no minimum duration. It filters by area in grid cells, against a
     percentile of all blob areas. It links blobs either as 3-D
@@ -259,6 +271,13 @@ the source or from running the code.
 47. **Chlorophyll L4s use different estimators by region:** kriging OI
     (global and Atlantic GlobColour, Saulquin et al. 2018) and modified
     DINEOF (Mediterranean and Black Sea).
+48. **The order of gap joining and the minimum duration is a def
+    parameter, not a constant.** Hobday and marineHeatWaves keep runs
+    that meet the minimum, then join them across short gaps. MHW-MAD
+    (checked against its data) and lfstat join first, then test the
+    minimum on the joined span, with gap days counted. At nine Tasman
+    pixels in 2015–2016 the two orders differ on 4.5% of event days
+    (88 of 1942) with a 5-day minimum.
 
 Finding 41's `maxPadLength` point was checked against xarray 2026.9.0
 (`checks/xarray-maxgap.py`, output in `checks/xarray-maxgap.out`).
@@ -295,7 +314,10 @@ and climdex.pcic from GitHub at `011cb78`. Each script writes its own
 - `marineHeatWaves-check.py`: marineHeatWaves 0.28, installed by the user
   into the system Python. It fails as installed under NumPy 2.5.1, so the
   script loads a copy patched in memory with two NumPy 2 fixes and prints
-  them (finding 40).
+  them (finding 40);
+- `mhw-mad.R`: MHW-MAD's own anomalies, thresholds and categories at
+  nine Tasman Sea pixels for 2015–2016, fetched from DMI's ERDDAP
+  into a cache directory given as its argument (findings 10–12 and 48).
 
 The Python scripts end in `-check` so they can't shadow the package
 they import.
