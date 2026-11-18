@@ -1,0 +1,2 @@
+xarray 2026.9.0 pandas 2.3.3 numpy 2.5.1
+max_gap=2: TypeError: Expected value of type str, pandas.Timedelta, datetime.timedelta or numpy.timedelta64, but received int

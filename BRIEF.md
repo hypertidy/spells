@@ -186,7 +186,8 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
     neighbours, and climdex.pcic uses 365 slots, with 29 February
     sharing 28 February's slot, or 360 slots. EflowStats 5 drops 29
     February, where HIT and extRemes' HWMId drop day 366 (31
-    December).
+    December). xclim uses day-of-year numbers, so leap years are a slot
+    out after 28 February, and stretches its 365 values onto 366.
   - So is the season-year label: winter is labelled by its December
     year in climdex.pcic and by its January year in ClimInd. lfstat
     makes it explicit for hydrological years: `assign = "majority"`,
@@ -231,9 +232,10 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
       window steps at the new year, the threshold steps too, but spells
       run across it rather than restarting.
   - Where the window reaches past the ends of the reference period, the
-    def says what fills it: data from the adjacent years (heatwaveR
-    1.0.0; HWMId needs a padding year either side), a wrap within the
-    year (heatwaveR 0.5.5, climdex.pcic), or a shorter window.
+    def says what fills it: data from outside the period
+    (marineHeatWaves, where the series has it; HWMId needs a padding
+    year either side), a wrap within the year (heatwaveR 0.5.5,
+    climdex.pcic), or a shorter window (heatwaveR 1.0.0, xmhw, xclim).
   - For comparisons, use a fixed baseline on an earlier work's period,
     with detrended or shifting results as best and worst cases.
   - The choice matters most for long records and for projections (Amaya
@@ -284,13 +286,16 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
     only after `e` steps back, and everything between belongs to it.
     Only the first run has to meet the minimum, where heatwaveR joins a
     gap only between two runs that each meet it. The def says which runs
-    the minimum applies to.
+    the minimum applies to. xclim's `find_events()` is the general form:
+    separate start and stop conditions, each with its own window.
   - **A minimum on the peak** is another opening: detect at one level
     and keep the spells whose peak reaches another (hydroEvents'
     `eventMaxima()`). Unlike hysteresis, the start and end stay at the
     detection level. A minimum on cumulative intensity, or on length ×
     mean² as CAPA's segment test has it, weighs duration and intensity
-    together.
+    together. So does xclim's rolling-window spell: a step is in a spell
+    if any `window`-step period containing it has a sum or mean beyond
+    the threshold (with `min`, that's the plain minimum duration).
   - **Minimum sizes are fixed values**, never relative to the data set,
     such as lfstat's default of 0.5% of the largest event's volume,
     Ocetrac's area percentile, or a penalty that grows with the series
@@ -308,6 +313,13 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
   and closing up the series (extRemes with `na.omit`) isn't an option:
   the gap then neither breaks nor counts. Filling long gaps with the
   background value (phenofit) is "count as baseline" by another name.
+  - "Refuse the season" has named rules: xclim's per-period checks (any
+    missing step, the default; WMO's 11 or more missing days in a month
+    or 5 in a row; a percentage; at least n valid), and climdex.pcic's
+    15 a year or 3 a month.
+  - A gap's length is the number of missing steps. xarray's `max_gap`
+    measures from valid value to valid value, one more, so a Python
+    port has to convert (xmhw doesn't).
 - **censoring**: a spell that touches the start or end of the series,
   or a missing run it can't cross, is flagged as left- or right-censored
   instead of being silently cut short. These are the same flags as
@@ -341,7 +353,9 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
     trend.sst does now. The other way is levels by episode: a higher
     level counts only if it forms its own spell, with its own duration
     rule (iglu's level 2 and "level 1 exclusive" episodes). The def names
-    which.
+    which. It also names the category of joined gap days below the
+    threshold: none in marineHeatWaves and xmhw, so their category
+    durations sum to less than the spell's; category I in trend.sst.
   - The category **unit** is its own parameter, defaulting to the
     detection threshold. The Hobday presets fix it at p90 minus the
     baseline. MHW-MAD's 95th and 99th percentile products use their own
@@ -372,7 +386,9 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
 
     Counts and durations change with the rule. Every summary follows
     the def's one rule: EflowStats mixes them, cutting events for its
-    counts and splitting them for its durations.
+    counts and splitting them for its durations. xclim has three of
+    these as parameters (`resample_before_rl` to cut; `index = "first"`
+    or `"last"` for by start or by end), and xmhw adds by peak.
   - **Seasons with no spells** count as zero or are left out of means
     across seasons (EflowStats does both: FL1 and FL3). That's part of
     the def too.
@@ -401,6 +417,9 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
 **Parity names a version**: `parity = "heatwaveR-0.5.5"`,
 `"heatwaveR-1.0.0"` or `"heatwave3-1.5.0"`. The survey has the full table
 of switches for each version (`inst/survey/heatwaveR-versions.md`).
+marineHeatWaves (`d7292bf`, the original Python code) is a candidate
+fourth: stored outputs on a few pixels would show which of heatwaveR's
+behaviours are inherited (see `inst/survey/python-mhw.md`).
 
 `heatwaveR-0.5.5` is what trend.sst matches now (from `R/mhw.R`):
 - NA is set to seas after `maxPadLength` interpolation;
@@ -783,7 +802,8 @@ Packages to cover:
   - land phenology (e.g. phenofit) *(done 2026-11-18 from the source,
     not run: `phenofit.md`)*
 - Python: xclim (`run_length`, the spell indicators), marineHeatWaves,
-  xmhw.
+  xmhw. *(done 2026-11-18 from the source, not run, with one xarray
+  check: `xclim.md`, `python-mhw.md`)*
 - Near-real-time and operational prior art, for presentation:
   - the Marine Heatwave Tracker (heatwave3 on OISST, two baselines);
   - NOAA PSL forecasts;

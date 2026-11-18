@@ -28,7 +28,8 @@ the source or from running the code.
 | anomaly 4.3.3 (CAPA) | source read 2026-11-18, not run | [anomaly.md](anomaly.md) |
 | iglu 4.2.2 | source read 2026-11-18, not run | [iglu.md](iglu.md) |
 | phenofit 0.3.11 (land phenology) | source read 2026-11-18, not run | [phenofit.md](phenofit.md) |
-| xclim, marineHeatWaves, xmhw (Python) | to do | |
+| marineHeatWaves `d7292bf`, xmhw 1.0.0 (Python) | source read 2026-11-18, not run; one xarray check | [python-mhw.md](python-mhw.md) |
+| xclim 1.0 (Python) | source read 2026-11-18, not run | [xclim.md](xclim.md) |
 | estimators (DINEOF, DINCAE, 4DVarNet, L4 methods) | to do | separate short grid |
 
 ## Findings so far that change the brief
@@ -207,7 +208,27 @@ the source or from running the code.
     date becomes the midpoint between season start and peak, unflagged.
     The record ends are padded with copies of the adjacent year, and long
     gaps are filled with the background value.
+40. **marineHeatWaves, the original Hobday code, differs from heatwaveR
+    in ways worth pinning down:** its window reaches outside the
+    climatology period when data exists, it doesn't interpolate missing
+    values by default (its docstring says it does), it has no
+    trailing-gap join, and joined gap days fall in no category.
+41. **xmhw isn't a faithful port** (to confirm by running): an event that
+    starts on the series' first day loses that day, the onset period for
+    first-day peaks is 1.5 days instead of 0.5, and block `extreme_days`
+    counts category 4 only. Its `maxPadLength` fails as documented: an
+    integer `max_gap` on a date axis is rejected by xarray (checked).
+42. **xclim already has most of spells' def parameters under other
+    names:** `resample_before_rl` and `index` for attribution,
+    `min_gap` for gaps, `find_events` for start and stop conditions with
+    their own windows, and per-period missing checks (any, WMO, pct).
+    Its spells can also be defined by a rolling sum or mean.
+43. **xclim's day-of-year slots** are calendar numbers, misaligned in
+    leap years, with 365 values stretched onto 366. Its WSDI won't match
+    climdex.pcic's exactly.
 
+Finding 41's `maxPadLength` point was checked against xarray 2026.9.0
+(`checks/xarray-maxgap.py`, output in `checks/xarray-maxgap.out`).
 Findings 2 to 5 were confirmed by running (`checks/heatwave3.R`, output
 in `checks/heatwave3.out`). The details are in heatwave3.md, "Checked by
 running".

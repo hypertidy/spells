@@ -35,8 +35,8 @@ HWMId replaced HWMI in the 2015 paper.
   (**type 8**) of the 30 reference years over a **31-day window**
   (±15 days), so 930 values. No smoothing.
   - At the ends of the reference period, the window takes days from the
-    padding years, the adjacent real years, not a wrap within the year
-    (as heatwaveR 1.0.0 does, not 0.5.5).
+    padding years, the adjacent real years. heatwaveR 0.5.5 wraps within
+    the year there, and 1.0.0 shortens the window.
 - **Direction:** above, strictly (`Ti > threshold`).
 - **Persistence:** at least 3 consecutive days. No gap joining.
 - **Season year:** each 365-day calendar year on its own. Runs are **cut
@@ -106,5 +106,5 @@ HWMId replaced HWMI in the 2015 paper.
    (HWMId, HIT).
 5. **The reference period needs data outside itself** when the window
    reaches across its ends. The def should say how the ends are handled:
-   padding years (HWMId, heatwaveR 1.0.0), a wrap within the year
-   (heatwaveR 0.5.5, climdex.pcic), or a shorter window.
+   padding years (HWMId), a wrap within the year (heatwaveR 0.5.5,
+   climdex.pcic), or a shorter window (heatwaveR 1.0.0).
