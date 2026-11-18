@@ -26,7 +26,7 @@ the source or from running the code.
 | extRemes 2.2-1 | source read 2026-11-18, not run | [declustering.md](declustering.md), [hwmi.md](hwmi.md) |
 | evd 2.3-7.1, POT 1.1-12 | source read 2026-11-18, not run | [declustering.md](declustering.md) |
 | anomaly 4.3.3 (CAPA) | source read 2026-11-18, not run | [anomaly.md](anomaly.md) |
-| iglu | to do | |
+| iglu 4.2.2 | source read 2026-11-18, not run | [iglu.md](iglu.md) |
 | phenofit (land phenology) | to do | |
 | xclim, marineHeatWaves, xmhw (Python) | to do | |
 | estimators (DINEOF, DINCAE, 4DVarNet, L4 methods) | to do | separate short grid |
@@ -187,6 +187,18 @@ the source or from running the code.
     default penalties grow with the series length. MVCAPA defines an
     event over many series as co-occurrence with lags, with no
     adjacency.
+35. **iglu's episodes start and end by duration:** at least 15 minutes
+    beyond the threshold to start, at least 15 minutes back to end, and
+    everything between belongs to the episode. Only the first run needs
+    the minimum, unlike heatwaveR's join. It's the oracle for a CGM
+    consensus preset (Battelino et al. 2023).
+36. **iglu counts levels by episode:** a level 2 episode needs its own
+    15 minutes, and "level 1 exclusive" episodes contain none. Hobday's
+    categories are per step.
+37. **Irregular data, in time units:** iglu interpolates readings onto a
+    grid, fills gaps of up to 45 minutes, and splits the trace at longer
+    ones. Episodes per day of recording exclude the gaps, but its
+    time-above shares count raw readings.
 
 Findings 2 to 5 were confirmed by running (`checks/heatwave3.R`, output
 in `checks/heatwave3.out`). The details are in heatwave3.md, "Checked by

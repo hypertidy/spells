@@ -177,7 +177,10 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
   bloom year). Don't assume daily data: chl is 5-day. Don't assume the
   Gregorian calendar either: some CMIP6 models in `oi10` use `noleap`
   (e.g. CESM2) or `360_day` (e.g. UKESM1), which heatwave3 can't read.
-  climdex.pcic reads them, through PCICt.
+  climdex.pcic reads them, through PCICt. Don't assume regular steps:
+  CGM readings are irregular, and iglu interpolates them onto a grid
+  first. Regularisation is an input step, and the def records its rule
+  (the grid step and alignment, duplicates, the interpolation limit).
   - The slot rule is part of the def, because conventions differ:
     heatwaveR uses 366 slots with 29 February filled from its
     neighbours, and climdex.pcic uses 365 slots, with 29 February
@@ -269,7 +272,13 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
     estimated from the data (intervals declustering, POT's `fitexi()`)
     is fitted once and stored in the def, like a baseline. Gaps count
     steps; for irregular series the def could give a duration instead
-    (POT's `tim.cond`).
+    (POT's `tim.cond`, iglu's 45-minute interpolation limit).
+  - **Start and end rules** are another persistence model (iglu, from
+    the CGM consensus): a spell starts with `d` steps beyond and ends
+    only after `e` steps back, and everything between belongs to it.
+    Only the first run has to meet the minimum, where heatwaveR joins a
+    gap only between two runs that each meet it. The def says which runs
+    the minimum applies to.
   - **A minimum on the peak** is another opening: detect at one level
     and keep the spells whose peak reaches another (hydroEvents'
     `eventMaxima()`). Unlike hysteresis, the start and end stay at the
@@ -318,7 +327,10 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
   - Categories are Hobday 2018 multiples of threshold minus baseline,
     computed per step. The rule is part of the def: floor of the
     multiple, with event days below 1x counted as I. That's what
-    trend.sst does now.
+    trend.sst does now. The other way is levels by episode: a higher
+    level counts only if it forms its own spell, with its own duration
+    rule (iglu's level 2 and "level 1 exclusive" episodes). The def names
+    which.
   - The category **unit** is its own parameter, defaulting to the
     detection threshold. The Hobday presets fix it at p90 minus the
     baseline. MHW-MAD's 95th and 99th percentile products use their own
@@ -333,6 +345,10 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
   intensity and the highest category. A summary can also pick one spell
   by a metric and report its other metrics: HWMId's yearly value is the
   largest heatwave, with its duration and start.
+  - **Rates per observed time** (iglu's episodes per day of recording,
+    with gaps excluded) stay comparable when coverage differs. Shares
+    say whether they're of steps or of time; for irregular series these
+    differ (iglu's time-above shares count readings).
   - **How a spell that crosses the season-year boundary is assigned** is
     part of the def. The survey found five rules:
     - by start (heatwaveR, heatwave3);
@@ -462,6 +478,10 @@ st <- spell_state(...); spell_step(st, x_today, b, def)   # streaming
     31-day window).
   - Runs declustering: extRemes' `decluster()` and evd's `clusters()`,
     as spells with no minimum and `max_gap = r - 1`.
+  - A `battelino2023` (CGM episodes) preset, if wanted, shows the core
+    is domain-neutral: iglu's `episode_calculation()` is the oracle,
+    with its start and end rules, levels by episode and 45-minute
+    interpolation limit.
 - **Batch and streaming agree**: the online `state + step` form must
   reproduce the batch mask except for a declared **provisional tail**
   (about `max(min_duration, max_gap + 1)` steps), the same idea as
@@ -748,7 +768,7 @@ Packages to cover:
     source, not run: `declustering.md`, `hwmi.md`)*
   - anomaly (CAPA) *(done 2026-11-18 from the source, not run:
     `anomaly.md`)*
-  - iglu
+  - iglu *(done 2026-11-18 from the source, not run: `iglu.md`)*
   - land phenology (e.g. phenofit)
 - Python: xclim (`run_length`, the spell indicators), marineHeatWaves,
   xmhw.
