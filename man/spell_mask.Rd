@@ -19,8 +19,10 @@ It needn't be the stretch the baseline was fitted on.}
 A list of time x series matrices: \code{event} (logical, \code{TRUE} on
 every step in a spell, joined gaps included), \code{category} (integer: 0
 outside spells and for steps with no category, 1 to 4 for Hobday
-2018's I to IV) and \code{anom} (the series minus the baseline, after the
-def's missing-data rule: \code{NA} where a step can't be tested).
+2018's I to IV; only if the def has categories) and \code{anom} (the
+series minus the baseline, after the def's missing-data rule: \code{NA}
+where a step can't be tested). A low spell (a cold spell) is below
+the threshold, and its categories count down from it.
 }
 \description{
 Applies a fitted baseline to a series by slot, finds the steps beyond

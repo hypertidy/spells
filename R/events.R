@@ -5,7 +5,13 @@
 #' Measures each spell in a [spell_mask()]: its start, peak and end, its
 #' duration, its intensities relative to the baseline, to the threshold
 #' and in the series' own units, its rates of onset and decline, and its
-#' category.
+#' category if the def has categories.
+#'
+#' A spell below the threshold (a cold spell, [schlegel2021()]) keeps the
+#' series' sign: its anomalies and rates are negative, `intensity_max` is
+#' its most negative anomaly and `intensity_max_abs` its lowest value, as
+#' heatwaveR and heatwave3 report them. Its categories are I to IV, as a
+#' high spell's.
 #'
 #' Every step in a spell is measured, joined gaps included, after the
 #' def's missing-data rule (with the clean rules a short run of missing
@@ -43,7 +49,9 @@
 #'   * `rate_onset`, `rate_decline`: per step;
 #'   * `category`: 1 to 4 for Hobday 2018's I to IV, by the def's
 #'     category rule ([categories()]); `n_moderate`, `n_strong`,
-#'     `n_severe`, `n_extreme`: steps in each, by the same rule.
+#'     `n_severe`, `n_extreme`: steps in each, by the same rule. These
+#'     columns are there only if the def has categories ([hobday2018()],
+#'     not [hobday2016()]).
 #'
 #'   With a parity mode that rounds, the intensities and rates are
 #'   rounded as its engine rounds them.
@@ -51,7 +59,7 @@
 #' @examples
 #' x <- 20 + 2 * sin(2 * pi * seq_len(3653) / 365.25) + rnorm(3653, sd = 0.5)
 #' time <- seq(as.Date("1990-01-01"), by = "day", length.out = 3653)
-#' def <- hobday2016(c("1990-01-01", "1999-12-31"))
+#' def <- hobday2018(c("1990-01-01", "1999-12-31"))
 #' b <- spell_baseline(x, time, def)
 #' m <- spell_mask(x, time, b)
 #' ev <- spell_events(x, time, b, m)
@@ -74,7 +82,9 @@ spell_events <- function(x, time, baseline, mask) {
   no_rate <- p$open | (miss & !p$interpolated)
   beyond <- x > thresh
   beyond[p$open] <- FALSE
-  ecat <- switch(rule$event,
+  ecat <- if (is.null(rule)) {
+    matrix(0L, nrow(x), ncol(x))
+  } else switch(rule$event,
     max = mask$category,
     share = level_category(x, category_levels(seas, thresh, rule), rule$event_compare),
     stop("unknown event category rule \"", rule$event, "\""))
@@ -114,7 +124,9 @@ spell_events <- function(x, time, baseline, mask) {
                       "n_moderate", "n_strong", "n_severe", "n_extreme")
   duration <- sp$index_end - sp$index_start + 1L
   cnt <- vals[, c("n_moderate", "n_strong", "n_severe", "n_extreme"), drop = FALSE]
-  category <- if (rule$event == "share") {
+  category <- if (is.null(rule)) {
+    NULL
+  } else if (rule$event == "share") {
     ## heatwaveR's category(): the highest category whose share of the
     ## spell's steps, rounded to a whole percent, is above zero; I if none
     pct <- round(cnt / duration * 100, 0)
@@ -125,6 +137,14 @@ spell_events <- function(x, time, baseline, mask) {
     }, 0L)
   }
   metric <- grep("^(intensity|rate)_", colnames(vals), value = TRUE)
+  ## a low spell was measured on the negated series: its intensities and
+  ## rates go back to the series' own sign (heatwaveR, heatwave3), so the
+  ## anomalies are negative and intensity_max is the most negative; the
+  ## spreads (sd) have no sign
+  if (p$sign < 0) {
+    signed <- grep("^(intensity_(max|mean|cumulative)|rate_)", colnames(vals), value = TRUE)
+    vals[, signed] <- -vals[, signed]
+  }
   if (!is.null(rules$round)) vals[, metric] <- round(vals[, metric], rules$round)
   ip <- as.integer(vals[, "index_peak"])
   out <- data.frame(series = sp$series, spell = sp$spell,
@@ -141,8 +161,10 @@ spell_events <- function(x, time, baseline, mask) {
   at <- sp$index_end < n
   out$cut_end[at] <- p$open[cbind(sp$index_end[at] + 1L, j[at])]
   out <- cbind(out, as.data.frame(vals[, metric, drop = FALSE]))
-  out$category <- as.integer(category)
-  for (nm in colnames(cnt)) out[[nm]] <- as.integer(cnt[, nm])
+  if (!is.null(rule)) {
+    out$category <- as.integer(category)
+    for (nm in colnames(cnt)) out[[nm]] <- as.integer(cnt[, nm])
+  }
   out
 }
 

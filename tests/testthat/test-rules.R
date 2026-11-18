@@ -46,6 +46,12 @@ test_that("definitions: clean by default, parity by name", {
   expect_error(hobday2016(ref, parity = "heatwaveR-9"), "unknown parity mode")
   expect_error(hobday2016(c("1982-02-01", "2011-12-31"), parity = "heatwaveR-0.5.5"), "whole years")
   expect_s3_class(hobday2016(ref, parity = "heatwaveR-0.5.5"), "spell_def")
+  sc <- schlegel2021(ref)
+  expect_identical(sc$direction, "low")
+  expect_identical(sc$threshold$p, 0.1)
+  expect_s3_class(sc$category, "spell_categories")
+  expect_null(hobday2016(ref)$category)
+  expect_identical(hobday2018(ref, parity = "heatwave3-1.5.0")$category$event, "share")
   pm <- parity_modes()
   expect_identical(pm$parity[pm$implemented], c("heatwaveR-0.5.5", "heatwaveR-1.0.0", "heatwave3-1.5.0"))
 })
@@ -101,7 +107,7 @@ test_that("spell_events: edges, step counts and the empty case", {
 })
 
 test_that("event category rules", {
-  def <- hobday2016(c("2001-01-01", "2001-12-31"), parity = "heatwaveR-1.0.0")
+  def <- hobday2018(c("2001-01-01", "2001-12-31"), parity = "heatwaveR-1.0.0")
   time <- seq(as.Date("2001-01-01"), by = "day", length.out = 365)
   b <- structure(list(def = def, seas = matrix(0, 366, 1), thresh = matrix(1, 366, 1)),
                  class = "spell_baseline")

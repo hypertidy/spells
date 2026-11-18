@@ -987,7 +987,16 @@ area metrics as sums, and the ice mask.
    before rounding. On the stored cases, the clean thresholds differ
    from heatwave3's by up to 0.008 °C near 29 February and 0.00005 °C
    elsewhere, and the event days are the same except where short gaps
-   are now interpolated (7 days on `wa_gaps`). Next: the presets. Moving
+   are now interpolated (7 days on `wa_gaps`). *The presets done the
+   same day* (see Decisions): `hobday2016()`, `hobday2018()` and
+   `schlegel2021()`, on an internal `spell_def()`. A cold spell runs on
+   the negated series, as both engines do, and every parity mode
+   reproduces their cold spells on all nine cases (stored outputs from
+   `pctile = 10`, `coldSpells = TRUE`). Schlegel et al. 2021 itself
+   couldn't be read (the publisher refuses automated fetches); its ice
+   category is known only from heatwaveR's documentation. Still to do in
+   this phase: the rule order made explicit, the eligibility mask, the
+   fixed and detrended baseline types, and trend.sst moving onto spells. Moving
    trend.sst to clean rules is a separate, visible step, and its labels
    say which rules it uses.
 2. **Generality gate 1 (ice)**: re-express trend.ice's ice season through
@@ -1112,6 +1121,14 @@ really needed for the Southern Ocean.
   invented; a slot needs half its window's possible days (each preset
   sets its own share); categories are the floor of the multiple, with
   joined gap days in none and a spell's category its highest day's.
+- 2026-11-18: **The presets**: `hobday2016()` detects and has no
+  categories, and `hobday2018()` adds them (as heatwaveR splits
+  `detect_event()` and `category()`). Cold spells (`schlegel2021()`)
+  keep the series' sign: negative intensities and rates, categories
+  I-IV. The clean cold-spell preset adds no freezing correction and no
+  ice category; SST under ice is the eligibility mask's job. The general
+  constructor, `spell_def()`, stays internal until generality gate 1
+  (ice) has shown what's general.
 - 2026-11-18: **heatwave3 is a test oracle only.** spells doesn't depend
   on it, not even in Suggests. Its outputs are generated once by a
   script and stored with the tests, and the Hobday presets run on spells'

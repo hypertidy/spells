@@ -74,7 +74,7 @@ test_that("clean baseline: heatwave3's, unrounded, away from 29 February", {
 
 ## a flat baseline 0 and threshold 1, under the clean rules
 flat <- function(n_days = 365) {
-  def <- hobday2016(c("2001-01-01", "2001-12-31"))
+  def <- hobday2018(c("2001-01-01", "2001-12-31"))
   list(time = seq(as.Date("2001-01-01"), by = "day", length.out = n_days),
        b = structure(list(def = def, seas = matrix(0, 366, 1), thresh = matrix(1, 366, 1)),
                      class = "spell_baseline"))
@@ -146,4 +146,46 @@ test_that("clean definition prints its rules", {
   out <- capture.output(print(hobday2016(c("1982-01-01", "2011-12-31"))))
   expect_match(out[1], "clean rules")
   expect_true(any(grepl("3 or fewer interpolated", out)))
+})
+
+test_that("presets: hobday2016 has no categories, hobday2018 adds them", {
+  k <- cases$wa_tail1
+  r16 <- run_case(k, hobday2016(k$reference))
+  r18 <- run_case(k, hobday2018(k$reference))
+  expect_null(r16$mask$category)
+  expect_false(any(c("category", "n_moderate") %in% names(r16$events)))
+  expect_identical(r16$mask$event, r18$mask$event)
+  expect_identical(r16$events, r18$events[names(r16$events)])
+  expect_true(all(r18$events$category %in% 1:4))
+  expect_match(capture.output(print(hobday2016(k$reference)))[6], "category:  none")
+})
+
+test_that("clean cold spells mirror heatwaves on the negated series", {
+  ## schlegel2021 on x with a baseline (seas, thresh) is hobday2018 on -x
+  ## with (-seas, -thresh): the same spells and categories, with the
+  ## intensities and rates of opposite sign and the spreads the same
+  f <- flat()
+  set.seed(3)
+  x <- as.numeric(stats::filter(stats::rnorm(365), 0.8, method = "recursive"))
+  x[c(50, 51, 200:202)] <- NA
+  cold <- f$b
+  cold$def <- schlegel2021(c("2001-01-01", "2001-12-31"))
+  cold$thresh[] <- -1
+  mc <- spell_mask(x, f$time, cold)
+  ec <- spell_events(x, f$time, cold, mc)
+  mh <- spell_mask(-x, f$time, f$b)
+  eh <- spell_events(-x, f$time, f$b, mh)
+  expect_gt(nrow(ec), 3)
+  expect_identical(mc$event, mh$event)
+  expect_identical(mc$category, mh$category)
+  expect_identical(mc$anom, -mh$anom)
+  signed <- grep("^(intensity_(max|mean|cumulative)|rate_)", names(ec), value = TRUE)
+  same <- setdiff(names(ec), signed)
+  expect_identical(ec[same], eh[same])
+  expect_identical(as.list(ec[signed]), lapply(eh[signed], `-`))
+  expect_true(all(ec$intensity_max < 0))
+  expect_identical(ec$intensity_max_abs, vapply(seq_len(nrow(ec)), function(i) {
+    t <- ec$index_start[i]:ec$index_end[i]
+    min(spells:::interpolate_runs(matrix(x), 3L)[t, 1])
+  }, 0))
 })

@@ -1,5 +1,6 @@
 ## Golden outputs for spells' parity tests: the input cases, and what
-## heatwaveR 0.5.5, heatwaveR 1.0.0 and heatwave3 1.5.0 make of them.
+## heatwaveR 0.5.5, heatwaveR 1.0.0 and heatwave3 1.5.0 make of them, as
+## heatwaves and as cold spells.
 ## The tests read the stored files, so they need none of the three.
 ##
 ## Rscript data-raw/golden.R      (from the package root)
@@ -130,13 +131,15 @@ cases <- list(
 )
 
 ## --- heatwaveR, one process per version -----------------------------------
-run_heatwaveR <- function(lib, cs) {
-  callr::r(function(cs) {
+## cold: cold spells, the 10th percentile and coldSpells = TRUE (with
+## category()'s defaults: no MCScorrect, no MCSice)
+run_heatwaveR <- function(lib, cs, cold = FALSE) {
+  callr::r(function(cs, cold) {
     one <- function(dates, temp, reference, detect_from) {
       ts <- data.frame(t = dates, temp = temp)
-      cl <- heatwaveR::ts2clm(ts, climatologyPeriod = reference)
+      cl <- heatwaveR::ts2clm(ts, climatologyPeriod = reference, pctile = if (cold) 10 else 90)
       if (!is.null(detect_from)) cl <- cl[cl$t >= detect_from, ]
-      de <- heatwaveR::detect_event(cl)
+      de <- heatwaveR::detect_event(cl, coldSpells = cold)
       ca <- heatwaveR::category(de, climatology = TRUE)
       dc <- de$climatology
       daycat <- ca$climatology$category[match(dc$t, ca$climatology$t)]
@@ -150,7 +153,7 @@ run_heatwaveR <- function(lib, cs) {
       one(k$dates, k$x[, j], k$reference, k$detect_from)))
     list(version = format(utils::packageVersion("heatwaveR")),
          path = find.package("heatwaveR"), cases = res)
-  }, args = list(cs), libpath = unique(c(lib, .libPaths())))
+  }, args = list(cs, cold), libpath = unique(c(lib, .libPaths())))
 }
 
 ## --- heatwave3, from NetCDF ------------------------------------------------
@@ -169,17 +172,17 @@ write_nc <- function(path, dates, x) {
 ## detect3() fits and detects in one call, with its event categories. For a detection window cut
 ## from a longer series (wa_lead), detect_event3() reads the stored
 ## climatology and only the window's dates (time_range).
-run_heatwave3 <- function(cs) {
+run_heatwave3 <- function(cs, cold = FALSE) {
   one <- function(dates, temp, reference, detect_from) {
     stem <- tempfile(tmpdir = work)
     path <- write_nc(paste0(stem, "_in.nc"), dates, temp)
     detect3(path, name = stem, climatologyPeriod = format(reference), category = TRUE,
-            daily = "also", quiet = TRUE)
+            pctile = if (cold) 10 else 90, coldSpells = cold, daily = "also", quiet = TRUE)
     if (!is.null(detect_from)) {
       stem2 <- paste0(stem, "_window")
       detect_event3(path, name = stem2, clim_file = paste0(stem, "_clim.nc"),
                     time_range = format(c(detect_from, max(dates))), category = TRUE,
-                    daily = "also", quiet = TRUE)
+                    coldSpells = cold, daily = "also", quiet = TRUE)
     } else stem2 <- stem
     cd <- heatwave3:::hw3_read_clim_nc(paste0(stem, "_clim.nc"))
     dd <- as.data.frame(hw3_export(paste0(stem2, "_events_daily.nc")))
@@ -217,20 +220,24 @@ meta <- function(engine, version, source) {
 h055 <- run_heatwaveR(lib055, cases)
 h100 <- run_heatwaveR(lib100, cases)
 stopifnot(h055$version == "0.5.5", h100$version == "1.0.0")
+c055 <- run_heatwaveR(lib055, cases, cold = TRUE)
+c100 <- run_heatwaveR(lib100, cases, cold = TRUE)
 ## wa_levels' stretches are where 0.5.5's and 1.0.0's climatologies agree
 at <- unique(clim055$doy[cases$wa_levels$x[, 1] != oisst[, "WA"]])
 clim_at <- function(h) with(h$cases$wa_levels[[1]]$clim, cbind(seas, thresh)[match(at, doy), ])
 stopifnot(identical(clim_at(h055), clim_at(h100)))
 h3 <- run_heatwave3(cases)
+c3 <- run_heatwave3(cases, cold = TRUE)
 ts <- run_trend_sst(cases, tsst)
 
 saveRDS(cases, file.path(out, "cases.rds"), compress = "xz")
-saveRDS(list(meta = meta("heatwaveR", "0.5.5", "CRAN"), cases = h055$cases),
+## cases: heatwaves (90th percentile); cold: cold spells (10th, coldSpells)
+saveRDS(list(meta = meta("heatwaveR", "0.5.5", "CRAN"), cases = h055$cases, cold = c055$cases),
         file.path(out, "golden-heatwaveR-0.5.5.rds"), compress = "xz")
 saveRDS(list(meta = meta("heatwaveR", "1.0.0", "GitHub robwschlegel/heatwaveR @e0ae30d"),
-             cases = h100$cases),
+             cases = h100$cases, cold = c100$cases),
         file.path(out, "golden-heatwaveR-1.0.0.rds"), compress = "xz")
-saveRDS(list(meta = meta("heatwave3", "1.5.0", "GitHub @8aff3e5"), cases = h3),
+saveRDS(list(meta = meta("heatwave3", "1.5.0", "GitHub @8aff3e5"), cases = h3, cold = c3),
         file.path(out, "golden-heatwave3-1.5.0.rds"), compress = "xz")
 saveRDS(list(meta = meta("trend.sst R/mhw.R", tsst_commit,
                          paste("mdsumner/trend.sst, R/mhw.R as of", tsst_commit)), cases = ts),
@@ -240,9 +247,10 @@ saveRDS(list(meta = meta("trend.sst R/mhw.R", tsst_commit,
 for (nm in names(cases)) {
   k <- cases[[nm]]
   ev <- function(g) if (is.null(g)) "-" else paste(sapply(g, function(s) nrow(s$events)), collapse = "/")
-  cat(sprintf("%-12s %s to %s, %d series, reference %s to %s; events 0.5.5 %s, 1.0.0 %s, heatwave3 %s\n",
+  cat(sprintf("%-12s %s to %s, %d series, reference %s to %s; events 0.5.5 %s, 1.0.0 %s, heatwave3 %s; cold spells %s, %s, %s\n",
               nm, format(min(k$dates)), format(max(k$dates)), ncol(k$x),
               format(k$reference[1]), format(k$reference[2]),
-              ev(h055$cases[[nm]]), ev(h100$cases[[nm]]), ev(h3[[nm]])))
+              ev(h055$cases[[nm]]), ev(h100$cases[[nm]]), ev(h3[[nm]]),
+              ev(c055$cases[[nm]]), ev(c100$cases[[nm]]), ev(c3[[nm]])))
 }
 print(file.info(list.files(out, full.names = TRUE))[, "size", drop = FALSE])

@@ -1,5 +1,15 @@
 # spells 0.0.0.9000
 
+* The presets: `hobday2016()` detects marine heatwaves and now has no
+  categories; `hobday2018()` adds Hobday et al. (2018)'s categories;
+  `schlegel2021()` detects marine cold spells, below the 10th
+  percentile, with negative intensities and rates and categories I to
+  IV counting down from the threshold (no freezing correction, no ice
+  category). All three take a parity mode: the cold-spell modes
+  reproduce heatwaveR's and heatwave3's `coldSpells` on stored outputs
+  for every test case. With no categories, `spell_mask()` and
+  `spell_events()` leave them out.
+
 * spells' clean rules: `hobday2016()` without `parity` runs them. The
   climatology window is shorter at the ends of the reference period;
   missing days in it, and slot 60 in non-leap years, drop out of the

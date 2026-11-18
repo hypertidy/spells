@@ -16,11 +16,15 @@ instead.
 
 ```r
 library(spells)
-def <- hobday2016(c("1982-01-01", "2011-12-31"))   # clean rules; or parity = "heatwaveR-0.5.5"
+def <- hobday2018(c("1982-01-01", "2011-12-31"))   # clean rules; or parity = "heatwaveR-0.5.5"
 b <- spell_baseline(x, time, def)  # x: time x series matrix, or one series
 m <- spell_mask(x, time, b)        # event, category and anomaly per step
 ev <- spell_events(x, time, b, m)  # one row per spell: dates, duration, intensities, rates, category
 ```
+
+The presets are `hobday2016()` (marine heatwaves, detection only),
+`hobday2018()` (with categories I to IV) and `schlegel2021()` (marine
+cold spells, below the 10th percentile, with negative intensities).
 
 ## Parity
 
@@ -35,6 +39,7 @@ in `tests/testthat/fixtures/`, so the tests need none of them installed.
 | `heatwaveR-1.0.0` | implemented: climatology, event days, daily categories, event metrics and categories |
 | `heatwave3-1.5.0` | implemented: climatology, event days, daily categories, event metrics and categories (heatwave3 is a test oracle only, not a dependency) |
 
-The test series are heatwaveR's `sst_WA`, `sst_Med` and `sst_NW_Atl`
-(NOAA OISST v2.1), with gaps, shortened ends and stretches set on the
-category levels to separate the rules.
+Every mode is tested for heatwaves and for cold spells. The test series
+are heatwaveR's `sst_WA`, `sst_Med` and `sst_NW_Atl` (NOAA OISST v2.1),
+with gaps, shortened ends and stretches set on the category levels to
+separate the rules.

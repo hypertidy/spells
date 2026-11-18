@@ -1,6 +1,8 @@
 ## spells' parity modes against the stored outputs of the version each
 ## names: heatwaveR's ts2clm(), detect_event() and category(climatology =
-## TRUE), and heatwave3's detect3() / detect_event3() with daily output.
+## TRUE), and heatwave3's detect3() / detect_event3() with daily output,
+## for heatwaves (hobday2018()) and cold spells (schlegel2021(); the
+## engines' coldSpells with the 10th percentile).
 ## The event tables are compared column by column, under spells' names.
 codes <- c("I Moderate" = 1L, "II Strong" = 2L, "III Severe" = 3L, "IV Extreme" = 4L)
 daily_category <- function(x) {
@@ -32,14 +34,16 @@ expect_event_categories <- function(ev, g) {
   for (nm in names(n)) expect_equal(round(ev[[n[[nm]]]] / ev$duration * 100, 0), g[[nm]], label = nm)
 }
 
+presets <- list(heatwaves = list(def = hobday2018, golden = "cases"),
+                cold_spells = list(def = schlegel2021, golden = "cold"))
 for (parity in c("heatwaveR-0.5.5", "heatwaveR-1.0.0", "heatwave3-1.5.0")) {
   golden <- fixture(paste0("golden-", parity, ".rds"))
-  for (nm in names(cases)) {
-    test_that(paste0(parity, " parity, ", nm, ": ", cases[[nm]]$note), {
+  for (kind in names(presets)) for (nm in names(cases)) {
+    test_that(paste0(parity, " parity, ", kind, ", ", nm, ": ", cases[[nm]]$note), {
       k <- cases[[nm]]
-      r <- run_case(k, hobday2016(k$reference, parity = parity))
+      r <- run_case(k, presets[[kind]]$def(k$reference, parity = parity))
       for (j in seq_len(ncol(k$x))) {
-        g <- golden$cases[[nm]][[j]]
+        g <- golden[[presets[[kind]]$golden]][[nm]][[j]]
         expect_equal(r$baseline$seas[g$clim$doy, j], g$clim$seas)
         expect_equal(r$baseline$thresh[g$clim$doy, j], g$clim$thresh)
         expect_equal(as.numeric(r$t), as.numeric(g$day$t))

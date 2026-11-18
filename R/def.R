@@ -1,13 +1,22 @@
 ## Definitions: what a spell is, as an object.
 
-#' Marine heatwaves, Hobday et al. (2016)
+#' Marine heatwaves and cold spells: the presets
 #'
-#' The marine heatwave definition of Hobday et al. (2016): a climatology
-#' from an 11-day window pooled over the reference years and smoothed by
-#' a 31-day running mean, the 90th percentile as the threshold, at least
-#' 5 days above it, and gaps of 2 days or fewer joined.
+#' * `hobday2016()`: marine heatwaves as Hobday et al. (2016) detect
+#'   them: a climatology from an 11-day window pooled over the reference
+#'   years and smoothed by a 31-day running mean, the 90th percentile as
+#'   the threshold, at least 5 days above it, and gaps of 2 days or fewer
+#'   joined. It has no categories.
+#' * `hobday2018()`: the same, with Hobday et al. (2018)'s categories,
+#'   I to IV, the multiples of the threshold's distance from the
+#'   baseline.
+#' * `schlegel2021()`: marine cold spells (Schlegel et al. 2021): the
+#'   same, below the 10th percentile, with the categories counting down
+#'   from it. Intensities and rates are negative, as heatwaveR and
+#'   heatwave3 report them. There's no freezing-point correction and no
+#'   ice category: SST under ice is a matter for an eligibility mask.
 #'
-#' By default it runs on spells' clean rules:
+#' By default they run on spells' clean rules:
 #' * the climatology window is shorter at the ends of the reference
 #'   period, using only the period's own days;
 #' * nothing is invented for the baseline: a missing day in the
@@ -26,7 +35,9 @@
 #' * categories are the floor of the multiple, joined gap days get none,
 #'   and a spell's category is its highest step's ([categories()]).
 #'
-#' `parity` reproduces another package's version instead.
+#' `parity` reproduces another package's version instead, for heatwaves
+#' and cold spells alike (heatwaveR's and heatwave3's `coldSpells`, with
+#' the 10th percentile).
 #'
 #' @param reference The reference period: two dates, the first and last
 #'   day. It must be whole years.
@@ -43,28 +54,69 @@
 #'
 #'   Hobday, A. J. et al. (2018). Categorizing and naming marine
 #'   heatwaves. Oceanography 31(2), 162-173. \doi{10.5670/oceanog.2018.205}
-#' @export
+#'
+#'   Schlegel, R. W. et al. (2021). Marine cold-spells. Progress in
+#'   Oceanography 198, 102684. \doi{10.1016/j.pocean.2021.102684}
+#' @name presets
 #' @examples
-#' hobday2016(c("1982-01-01", "2011-12-31"))
-#' hobday2016(c("1982-01-01", "2011-12-31"), parity = "heatwaveR-0.5.5")
-hobday2016 <- function(reference, parity = NULL, category = NULL) {
-  reference <- as_reference(reference)
-  mode <- if (is.null(parity)) clean_mode(max_interp = 3L, coverage = 0.5) else parity_mode(parity)
-  if (is.null(category)) category <- mode$category
-  if (!inherits(category, "spell_categories")) stop("`category` must come from categories()")
+#' ref <- c("1982-01-01", "2011-12-31")
+#' hobday2016(ref)
+#' hobday2018(ref, parity = "heatwaveR-0.5.5")
+#' schlegel2021(ref)
+NULL
+
+#' @rdname presets
+#' @export
+hobday2016 <- function(reference, parity = NULL) {
+  mode <- rule_mode(parity)
+  spell_def("hobday2016", reference, mode$rules, parity = parity)
+}
+
+#' @rdname presets
+#' @export
+hobday2018 <- function(reference, parity = NULL, category = NULL) {
+  mode <- rule_mode(parity)
+  spell_def("hobday2018", reference, mode$rules, parity = parity,
+            category = if (is.null(category)) mode$category else category)
+}
+
+#' @rdname presets
+#' @export
+schlegel2021 <- function(reference, parity = NULL, category = NULL) {
+  mode <- rule_mode(parity)
+  spell_def("schlegel2021", reference, mode$rules, parity = parity,
+            category = if (is.null(category)) mode$category else category,
+            direction = "low", p = 0.1)
+}
+
+## The clean rules (each preset's interpolation limit and coverage share;
+## all three use 3 steps and half), or a parity mode's.
+rule_mode <- function(parity) {
+  if (is.null(parity)) clean_mode(max_interp = 3L, coverage = 0.5) else parity_mode(parity)
+}
+
+## The general definition the presets fill in. Internal until generality
+## gate 1 (the ice season) shows what's general.
+spell_def <- function(name, reference, rules, parity = NULL, category = NULL,
+                      direction = c("high", "low"), p = 0.9, window = 11L, smooth = 31L,
+                      min_duration = 5L, max_gap = 2L) {
+  direction <- match.arg(direction)
+  if (!is.null(category) && !inherits(category, "spell_categories")) {
+    stop("`category` must come from categories()", call. = FALSE)
+  }
   structure(list(
-    name = "hobday2016",
+    name = name,
     slots = "366",
-    reference = reference,
-    baseline = list(type = "climatology", window = 11L, smooth = 31L),
-    threshold = list(type = "percentile", p = 0.9),
-    direction = "high",
-    min_duration = 5L,
-    max_gap = 2L,
+    reference = as_reference(reference),
+    baseline = list(type = "climatology", window = as.integer(window), smooth = as.integer(smooth)),
+    threshold = list(type = "percentile", p = p),
+    direction = direction,
+    min_duration = as.integer(min_duration),
+    max_gap = as.integer(max_gap),
     order = "minimum_first",
     category = category,
     parity = parity,
-    rules = mode$rules
+    rules = rules
   ), class = "spell_def")
 }
 
@@ -233,8 +285,12 @@ print.spell_def <- function(x, ...) {
              interpolate = paste("runs of", r$max_interp, "or fewer interpolated, longer ones cut")),
       if (!is.null(r$coverage)) paste("| a slot needs", r$coverage, "of its window"), "\n")
   cg <- x$category
-  cat("  category:  compare", cg$compare, "round", if (is.null(cg$round)) "none" else cg$round,
-      "gap days", cg$gap_days, "| event", cg$event,
-      if (cg$event == "share") paste0("(", cg$event_compare, ")"), "\n")
+  if (is.null(cg)) {
+    cat("  category:  none\n")
+  } else {
+    cat("  category:  compare", cg$compare, "round", if (is.null(cg$round)) "none" else cg$round,
+        "gap days", cg$gap_days, "| event", cg$event,
+        if (cg$event == "share") paste0("(", cg$event_compare, ")"), "\n")
+  }
   invisible(x)
 }

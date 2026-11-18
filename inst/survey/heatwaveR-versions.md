@@ -104,7 +104,14 @@ comparison adds two items to it (marked †):
 | rate when the day outside the event is missing | that day is `seas` | that day is `seas` | no rate |
 
 All three columns are now spells parity modes, reproduced on stored
-outputs (`tests/testthat/test-parity.R`). On gap-free reference periods,
+outputs (`tests/testthat/test-parity.R`), for heatwaves and for cold
+spells (`ts2clm(pctile = 10)`, `detect_event(coldSpells = TRUE)`, and
+`category()` with its defaults, so no `MCScorrect` or `MCSice`). Both
+versions detect cold spells on the negated series and report the
+intensities and rates negative again, the standard deviations and the
+`_abs` means and sums unchanged, and `intensity_max_abs` the lowest
+temperature. `category()` treats a whole event table as cold spells if
+any event's `i_max` is negative (`min(i_max) < 0`). On gap-free reference periods,
 the window and trailing-gap rows are the only differences between the
 heatwaveR versions, and heatwave3 equals 1.0.0. With gaps in the
 reference period, the climatology-fill row separates heatwave3 from

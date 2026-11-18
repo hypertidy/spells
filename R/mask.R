@@ -14,8 +14,10 @@
 #' @return A list of time x series matrices: `event` (logical, `TRUE` on
 #'   every step in a spell, joined gaps included), `category` (integer: 0
 #'   outside spells and for steps with no category, 1 to 4 for Hobday
-#'   2018's I to IV) and `anom` (the series minus the baseline, after the
-#'   def's missing-data rule: `NA` where a step can't be tested).
+#'   2018's I to IV; only if the def has categories) and `anom` (the
+#'   series minus the baseline, after the def's missing-data rule: `NA`
+#'   where a step can't be tested). A low spell (a cold spell) is below
+#'   the threshold, and its categories count down from it.
 #' @export
 #' @examples
 #' x <- 20 + 2 * sin(2 * pi * seq_len(3653) / 365.25) + rnorm(3653, sd = 0.5)
@@ -35,8 +37,10 @@ spell_mask <- function(x, time, baseline) {
                           leading_gap = rules$leading_gap, trailing_gap = rules$trailing_gap,
                           blocked = p$open[, j])
   }
-  cat <- step_category(p$x, p$seas, p$thresh, ev, def$category)
-  list(event = ev, category = cat, anom = p$x - p$seas)
+  out <- list(event = ev)
+  if (!is.null(def$category)) out$category <- step_category(p$x, p$seas, p$thresh, ev, def$category)
+  out$anom <- p$sign * (p$x - p$seas)
+  out
 }
 
 ## The series, baseline and threshold per step, after the def's
@@ -49,6 +53,9 @@ spell_mask <- function(x, time, baseline) {
 ## Also: which steps were missing, which were interpolated, and which
 ## are open (can't be tested: still missing, or in a slot without a
 ## baseline). No gap is joined across an open step.
+## A low spell's series, baseline and threshold are negated (sign -1),
+## so everything after looks for steps above the threshold, as
+## heatwaveR and heatwave3 detect cold spells.
 prepare_steps <- function(x, time, baseline) {
   if (!inherits(baseline, "spell_baseline")) stop("`baseline` must be a spell_baseline")
   x <- check_series(x, time)
@@ -71,8 +78,10 @@ prepare_steps <- function(x, time, baseline) {
     },
     stop("unknown missing rule \"", rules$missing, "\""))
   open <- is.na(x) | is.na(seas) | is.na(thresh)
-  list(x = x, seas = seas, thresh = thresh, missing = missing,
-       interpolated = interpolated, open = open)
+  sign <- switch(baseline$def$direction, high = 1, low = -1,
+                 stop("unknown direction \"", baseline$def$direction, "\""))
+  list(x = sign * x, seas = sign * seas, thresh = sign * thresh, missing = missing,
+       interpolated = interpolated, open = open, sign = sign)
 }
 
 ## Linear interpolation of each run of n or fewer missing steps that has

@@ -34,7 +34,9 @@ are heatwaveR's \code{intensity_var}, which is the standard deviation;
 \item \code{rate_onset}, \code{rate_decline}: per step;
 \item \code{category}: 1 to 4 for Hobday 2018's I to IV, by the def's
 category rule (\code{\link[=categories]{categories()}}); \code{n_moderate}, \code{n_strong},
-\code{n_severe}, \code{n_extreme}: steps in each, by the same rule.
+\code{n_severe}, \code{n_extreme}: steps in each, by the same rule. These
+columns are there only if the def has categories (\code{\link[=hobday2018]{hobday2018()}},
+not \code{\link[=hobday2016]{hobday2016()}}).
 }
 
 With a parity mode that rounds, the intensities and rates are
@@ -44,9 +46,15 @@ rounded as its engine rounds them.
 Measures each spell in a \code{\link[=spell_mask]{spell_mask()}}: its start, peak and end, its
 duration, its intensities relative to the baseline, to the threshold
 and in the series' own units, its rates of onset and decline, and its
-category.
+category if the def has categories.
 }
 \details{
+A spell below the threshold (a cold spell, \code{\link[=schlegel2021]{schlegel2021()}}) keeps the
+series' sign: its anomalies and rates are negative, \code{intensity_max} is
+its most negative anomaly and \code{intensity_max_abs} its lowest value, as
+heatwaveR and heatwave3 report them. Its categories are I to IV, as a
+high spell's.
+
 Every step in a spell is measured, joined gaps included, after the
 def's missing-data rule (with the clean rules a short run of missing
 steps is interpolated; with the parity modes a missing step counts as
@@ -64,7 +72,7 @@ heatwave3 gives no rate.
 \examples{
 x <- 20 + 2 * sin(2 * pi * seq_len(3653) / 365.25) + rnorm(3653, sd = 0.5)
 time <- seq(as.Date("1990-01-01"), by = "day", length.out = 3653)
-def <- hobday2016(c("1990-01-01", "1999-12-31"))
+def <- hobday2018(c("1990-01-01", "1999-12-31"))
 b <- spell_baseline(x, time, def)
 m <- spell_mask(x, time, b)
 ev <- spell_events(x, time, b, m)

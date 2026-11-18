@@ -319,7 +319,8 @@ items marked † are new or sharper than the brief:
 heatwave3's climatology, event days, daily categories, event metrics
 and event categories (`detect3(category = TRUE)`) on stored outputs
 (`tests/testthat/test-parity.R`), including a series with gaps in the
-climatology period, where it differs from heatwaveR.*
+climatology period, where it differs from heatwaveR, and for cold
+spells (`pctile = 10`, `coldSpells = TRUE`) on every case.*
 
 `checks/heatwave3.R`, on 2026-11-17, with heatwave3 1.5.0, heatwaveR
 1.0.0 (in a library of its own) and heatwaveR 0.5.5, all on `sst_WA`
