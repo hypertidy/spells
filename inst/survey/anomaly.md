@@ -4,8 +4,9 @@
   2024-08-19). GitHub: grosed/anomaly, branch 4.3. Fisch, Grose,
   Bardwell, Eckley and Fearnhead. GPL.
 - **How:** read 2026-11-18 from the R source (`R/capa.R`), skimming the
-  C++. **Not run** (not installed). Points marked *(to confirm)* are read
-  from the code.
+  C++. The points first read from the code were then **checked by
+  running** the same day (`checks/anomaly.R`, output in
+  `checks/anomaly.out`).
 - **References:**
   - Fisch, Eckley and Fearnhead 2022, *Stat. Anal. Data Min.*,
     doi:10.1002/sam.11586 (CAPA);
@@ -53,9 +54,9 @@ doi:10.1214/16-BA998), which aren't covered here.
   `max_seg_len` (default no limit). There's no gap rule: a dip inside a
   segment is absorbed if the segment still pays for itself, and
   otherwise the segment splits. Segments don't overlap.
-- **Missing data:** not handled. *(to confirm)* The input check
+- **Missing data:** not handled. *(checked)* The input check
   `Reduce("|", x == Inf)` gives NA when `x` has a missing value, so
-  `capa()` would stop on it.
+  `capa()` stops with "missing value where TRUE/FALSE needed".
 - **Time step:** any, by index. **Calendar and season year:** none.
 - **Metrics:** start, end, the series affected, start and end lags
   (MVCAPA), the mean change, and the variance change or test statistic.
@@ -75,14 +76,19 @@ doi:10.1214/16-BA998), which aren't covered here.
   `point_anomalies()`.
 
 Smaller points read from the code:
-- *(to confirm)* The backtracking loop runs while `cursor > 1`, so a
-  point anomaly at the first observation is never reported.
-- *(to confirm)* For `robustmean`, the extra point anomalies within a
-  segment use `start.lag` for both ends (`end - start.lag`).
-- Unresolved: `collective_anomalies()` uses magrittr's `%<>%`, which none
-  of the package's imports export, and a local `"%<>%" <- NULL` doesn't
-  supply it. Yet the CRAN checks pass, and the examples call it, so I've
-  missed where it comes from. One run would settle it.
+- *(checked)* The backtracking loop runs while `cursor > 1`, so a point
+  anomaly at the first observation is never reported: an outlier of 50
+  at t = 1 gave no point anomaly; the same outlier at t = 2 was found.
+- From the code, not checked: for `robustmean`, the extra point anomalies
+  within a segment use `start.lag` for both ends (`end - start.lag`).
+  `robustmean` is univariate only, where the lags are 0, so it has no
+  effect there.
+- *Resolved by running:* `collective_anomalies()` uses magrittr's
+  `%<>%`, which none of the package's imports export. It works only
+  because it sits inside a `%>%` chain: magrittr's `%>%` (imported
+  through tidyr) unrolls the whole chain and handles `%<>%` itself. With
+  only `%>%` bound, `x %<>% rev() %>% identity()` works and `x %<>%
+  rev()` alone fails with "could not find function".
 
 ## What this means for spells
 

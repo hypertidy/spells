@@ -801,16 +801,18 @@ Packages to cover:
   under embargo) and `ocetrac.md` (from the source, not run).*
 - R:
   - heatwaveR (+ RmarineHeatWaves, archived)
-  - climdex.pcic, ClimInd *(done 2026-11-17 from the source, not run:
-    `climdex.pcic.md`, `climind.md`)*
+  - climdex.pcic, ClimInd *(done 2026-11-17 from the source:
+    `climdex.pcic.md`, `climind.md`; climdex.pcic's WSDI checks run
+    2026-11-18)*
   - lfstat, SPEI, SCI *(done 2026-11-17 from the source, not run:
     `lfstat.md`, `spei-sci.md`)*
   - hydroEvents, EflowStats *(done 2026-11-18 from the source, not run:
     `hydroEvents.md`, `eflowstats.md`)*
   - extRemes, evd, POT (runs declustering) *(done 2026-11-18 from the
-    source, not run: `declustering.md`, `hwmi.md`)*
-  - anomaly (CAPA) *(done 2026-11-18 from the source, not run:
-    `anomaly.md`)*
+    source, with the declustering points checked by running:
+    `declustering.md`, `hwmi.md`)*
+  - anomaly (CAPA) *(done 2026-11-18 from the source, checked by
+    running: `anomaly.md`)*
   - iglu *(done 2026-11-18 from the source, not run: `iglu.md`)*
   - land phenology (e.g. phenofit) *(done 2026-11-18 from the source,
     not run: `phenofit.md`)*

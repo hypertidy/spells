@@ -17,15 +17,15 @@ the source or from running the code.
 | heatwaveR 1.0.0 vs 0.5.5 | source diff and run 2026-11-17 | [heatwaveR-versions.md](heatwaveR-versions.md) |
 | MHW-MAD (DMI, ESSD 2026) | paper and data README read 2026-11-17; code under embargo | [mhw-mad.md](mhw-mad.md) |
 | Ocetrac 0.1.7 | source read 2026-11-17, not run | [ocetrac.md](ocetrac.md) |
-| climdex.pcic 1.2-0 | source read 2026-11-17, not run | [climdex.pcic.md](climdex.pcic.md) |
+| climdex.pcic 1.2-0 | source read 2026-11-17; checks run 2026-11-18 | [climdex.pcic.md](climdex.pcic.md) |
 | ClimInd 0.1-3 | source read 2026-11-17, not run | [climind.md](climind.md) |
 | lfstat 0.9.15 | source read 2026-11-17, not run | [lfstat.md](lfstat.md) |
 | SPEI 1.8.1, SCI 1.0-3 | source read 2026-11-17, not run | [spei-sci.md](spei-sci.md) |
 | hydroEvents 0.13.0 | source read 2026-11-18, not run | [hydroEvents.md](hydroEvents.md) |
 | EflowStats 5.2.0 | source read 2026-11-18, not run | [eflowstats.md](eflowstats.md) |
-| extRemes 2.2-1 | source read 2026-11-18, not run | [declustering.md](declustering.md), [hwmi.md](hwmi.md) |
-| evd 2.3-7.1, POT 1.1-12 | source read 2026-11-18, not run | [declustering.md](declustering.md) |
-| anomaly 4.3.3 (CAPA) | source read 2026-11-18, not run | [anomaly.md](anomaly.md) |
+| extRemes 2.2-1 | source read 2026-11-18; declustering checks run | [declustering.md](declustering.md), [hwmi.md](hwmi.md) |
+| evd 2.3-7.1, POT 1.1-12 | source read 2026-11-18; checks run | [declustering.md](declustering.md) |
+| anomaly 4.3.3 (CAPA) | source read 2026-11-18; checks run | [anomaly.md](anomaly.md) |
 | iglu 4.2.2 | source read 2026-11-18, not run | [iglu.md](iglu.md) |
 | phenofit 0.3.11 (land phenology) | source read 2026-11-18, not run | [phenofit.md](phenofit.md) |
 | marineHeatWaves `d7292bf`, xmhw 1.0.0 (Python) | source read 2026-11-18, not run; one xarray check | [python-mhw.md](python-mhw.md) |
@@ -161,7 +161,8 @@ the source or from running the code.
 29. **evd's lower threshold is a closing with magnitude in it:** a
     cluster also ends after `rlow` steps at or below `ulow`. With a long
     `r`, that's hysteresis.
-30. **Read from the code, to confirm by running:**
+30. **Read from the code, then confirmed by running**
+    (`checks/declustering.R`):
     - extRemes' intervals declustering estimates a run length but
       declusters with `r = 1`;
     - POT measures its time condition from the cluster's running
@@ -259,3 +260,17 @@ in a library of its own (`R CMD INSTALL -l ~/R/heatwaveR-1.0.0`), because
 in the default library it would replace the 0.5.5 that trend.sst's
 parity check (`validate/mhw_tasman_pixels.R`) uses. The script runs each
 heatwaveR version in a separate R process.
+
+The later checks (2026-11-18) use packages installed into the default
+user library: extRemes 2.2-1 (with evd, Lmoments and distillery), POT
+1.1-12 and anomaly 4.3.3 from CRAN, PCICt 0.5-4.4 from the CRAN archive,
+and climdex.pcic from GitHub at `011cb78`. Each script writes its own
+`.out`:
+- `declustering.R`: extRemes, evd and POT (findings 30 and the
+  declustering notes);
+- `anomaly.R`: CAPA's missing values, a first-step outlier, and why
+  `%<>%` works;
+- `climdex.R`: WSDI across 1 January, and out-of-base thresholds in base
+  years;
+- `xarray-maxgap.py`: xarray's `max_gap` with an integer on a date axis
+  (finding 41).

@@ -1,0 +1,32 @@
+extRemes 2.2.1  evd 2.3.7.1  POT 1.1.12 
+
+1. extremalindex(intervals): theta = 0.755  clusters = 8  run.length = 2 
+   decluster(intervals): reported run.length = 2  clusters = 15 
+   runs with r = 1 gives 15 clusters; runs with r = 2 gives 8 
+
+2. x = 5 NA 5 1 5 ; threshold = 4 0 4 4 10 
+   after dropping the NA step, x has 4 values and the matching thresholds are 4 4 4 10 
+   decluster() warnings: longer object length is not a multiple of shorter object length 
+   output length 5 for 4 input values; output = 5 0 1 5 NA 
+
+3. groups + varying threshold (the code passes clusterfun = cluster, the id vector): ran 
+
+4. POT clust, u = 10, tim.cond = 1; exceedances at times 2 8 
+   documented rule (inter-arrival > 1 means independent): 2 clusters
+   clust() found 1 cluster(s):
+    cluster 1 : times 2 9 
+   exi = 0.5 
+   evd clusters(r = 2, i.e. join gaps < 2): 2 cluster(s)
+
+5. POT clust at the series end: obs 0 0 12 13 14 
+  time obs idx
+1    4  13   4
+attr(,"exi")
+[1] 0.3333333
+   (the maximum is 14 at time 5)
+
+6. AR(1) series, threshold at the 95th percentile; max interval between exceedances = 174 
+   evd::exi(r = 0)              = 0.5413 
+   extRemes::extremalindex      = 0.5413 
+   POT::fitexi                  = 0.5756 
+   by hand: form with T, T^2 = 0.5756 ; form with T-1, (T-1)(T-2) = 0.5413 

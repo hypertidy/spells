@@ -1,0 +1,15 @@
+anomaly 4.3.3 
+magrittr attached: FALSE 
+
+1. collective_anomalies() on the capa example: 36 rows 
+   %<>% found in: namespace:magrittr 
+   %<>% in the anomaly namespace or its imports: FALSE FALSE 
+   magrittr loaded (not attached): TRUE 
+
+2. capa() with one NA: error: missing value where TRUE/FALSE needed 
+
+3. outlier of 50 at t = 1: point anomalies at none 
+   outlier of 50 at t = 2: point anomalies at 2 
+
+4. x %<>% rev() %>% identity(), with only %>% bound: x = 3 2 1 
+   x %<>% rev() alone: error: could not find function "%<>%" 

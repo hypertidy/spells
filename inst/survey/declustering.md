@@ -5,9 +5,10 @@
   - `evd_2.3-7.1.tar.gz` (2024-09-21), Alec Stephenson, GPL-3;
   - `POT_1.1-12.tar.gz` (2026-09-18), Mathieu Ribatet, maintained by
     Christophe Dutang, GPL (>= 2).
-- **How:** read 2026-11-18 from source. **Not run.** None of the three is
-  installed here. Points marked *(to confirm)* are read from the code
-  and worth one run each.
+- **How:** read 2026-11-18 from source, then the points first read from
+  the code were **checked by running** the same day
+  (`checks/declustering.R`, output in `checks/declustering.out`). Each
+  is marked *(checked)* below, with the result.
 - The functions: `extRemes::decluster()` and `extremalindex()`
   (`R/dependence.R`), `evd::clusters()` and `exi()` (`R/stocproc.R`,
   `src/pot.c`), and `POT::clust()` and `fitexi()` (`R/graph-clust.R`,
@@ -54,20 +55,24 @@ cluster.
   (Ferro and Segers 2003): `r` is the K-th largest interval between
   exceedances, with K from the extremal index estimate. So the closing
   changes as data is added.
-  - *(to confirm)* `decluster.intervals()` computes `r` but doesn't pass
-    it on: it calls `decluster()` without `r`, which declusters by runs
-    with the default `r = 1`, and then records the estimated `r` as the
-    run length. The docs say clusters are separated using the estimated
-    `r`.
-- **extRemes with a varying threshold and `na.omit`** *(to confirm)*:
+  - *(checked)* `decluster.intervals()` computes `r` but doesn't pass it
+    on: it calls `decluster()` without `r`, which declusters by runs with
+    the default `r = 1`, and then records the estimated `r` as the run
+    length. The docs say clusters are separated using the estimated `r`.
+    On a test series the estimated `r` was 2 (8 clusters), but intervals
+    declustering returned 15 clusters, the same as runs with `r = 1`.
+- **extRemes with a varying threshold and `na.omit`** *(checked)*:
   `if(length(threshold==1))` is always TRUE, so `na.action` is applied to
-  `x` alone and the threshold vector isn't shortened to match. The
-  comparison is then misaligned. (The default, `na.fail`, stops on NA.)
-- **extRemes with `groups` and a varying threshold** *(to confirm)*: it
-  passes `clusterfun = cluster`, the vector of cluster ids, where it
-  means `clusterfun`.
+  `x` alone and the threshold vector isn't shortened to match. With five
+  steps, one missing, the comparison recycled the five thresholds over
+  four values (R's length warning), and the output had five values for
+  four inputs. (The default, `na.fail`, stops on NA.)
+- **extRemes with `groups` and a varying threshold** *(checked,
+  harmless)*: it passes `clusterfun = cluster`, the vector of cluster
+  ids, where it means `clusterfun`, but it runs: R's function lookup
+  skips the numeric argument and finds the right function.
 - **POT measures its time condition from the cluster's running maximum,
-  not from the last exceedance** *(to confirm)*. The docs say "two
+  not from the last exceedance** *(checked)*. The docs say "two
   events are considered independent if the inter-arrival time is
   greater than a fixed duration". In `do_clust()`, a sub-threshold step
   stays in the cluster while it's within `tim.cond` of the largest value
@@ -81,13 +86,22 @@ cluster.
   - clusters can end on sub-threshold steps within `tim.cond` of the
     maximum.
 
-  A cluster that reaches the end of the series also seems to lose its
-  last step (the end index is decremented before it's stored).
+  *Checked:* with `u = 10`, `tim.cond = 1` and exceedances at times 2
+  and 8, the five values between them rising from 9 to 9.9, `clust()`
+  returned **one** cluster (times 2–9). evd's `clusters(r = 2)` returned
+  two.
+
+  A cluster that reaches the end of the series also loses its last step
+  *(checked)*: the end index is decremented before it's stored. For
+  values 0, 0, 12, 13, 14 the cluster maximum came back as 13 at time 4,
+  not 14 at time 5.
 - **The intervals estimator of the extremal index:** evd (`exi()` with
   `r = 0`) and extRemes use the form with T and T² when the largest
   interval is at most 2, and the form with T − 1 and (T − 1)(T − 2)
-  above that. POT's `fitexi()` has them the other way round *(to
-  confirm)*, and returns 0 when all exceedances are consecutive.
+  above that. POT's `fitexi()` has them the other way round
+  *(checked)*, and returns 0 when all exceedances are consecutive. On an
+  AR(1) series with the largest interval 174, evd and extRemes gave
+  0.5413 (the T − 1 form) and POT 0.5756 (the T form).
   `fitexi()` also returns a `tim.cond` estimate, the run length from the
   data.
 - **POT's `ts2tsd()`** is a centred moving average over a duration `d`,

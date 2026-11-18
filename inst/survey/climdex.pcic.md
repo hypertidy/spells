@@ -8,7 +8,10 @@
   **PCICt** (calendars) was archived on 2025-05-03. The November 2026
   commits make CI use a vendored PCICt tarball. So both are GitHub-only,
   and spells can't list climdex.pcic in Suggests for CRAN checks.
-- **How:** read 2026-11-17 from source. **Not run.**
+- **How:** read 2026-11-17 from source. The two checks below were run on
+  2026-11-18 (`checks/climdex.R`, output in `checks/climdex.out`), with
+  PCICt 0.5-4.4 from the CRAN archive and climdex.pcic installed from
+  GitHub at `011cb78`.
 - Paths below are relative to the repo at that commit.
 
 ## The spell indices
@@ -125,10 +128,15 @@ Related indices: **CDD/CWD** (the longest dry or wet run, through
    month) are prior art for the brief's "refuse the season" missing-data
    option.
 
-## To check by running (optional)
+## Checked by running
 
-It needs PCICt and climdex.pcic installed from GitHub.
-- WSDI on one series with `spells.can.span.years` FALSE and TRUE,
-  around a run that crosses 1 January.
-- With the base period inside the data, confirm that WSDI uses the
-  out-of-base thresholds in base years.
+On a smooth seasonal series for 1961–1992 (base 1961–1990), with a 9-day
+hot spell from 28 December 1991 to 5 January 1992 and a 7-day one in
+July 1975:
+- **`spells.can.span.years`:** with FALSE (the default), the cross-year
+  spell adds nothing to 1991 or 1992, because its pieces are 4 and 5
+  days. With TRUE it adds 4 to 1991 and 5 to 1992. Confirmed.
+- **Out-of-base thresholds in base years:** `climdex.wsdi()` passes
+  `ci@quantiles$tmax$outbase$q90` for every year, and the `inbase`
+  thresholds exist but aren't used. The 1975 spell counts its 7 days.
+  Confirmed.

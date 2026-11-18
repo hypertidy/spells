@@ -1,0 +1,19 @@
+climdex.pcic 1.2.0  RemoteSha 011cb7828dfef1722d64e2fc207d2d9975280378  PCICt 0.5.4.4 
+
+1. WSDI with the 9-day spell 28 Dec 1991 - 5 Jan 1992 (4 + 5 days):
+     1975 1990 1991 1992
+cut     7    0    0    0
+span    7    0    4    5
+   expected: cut gives 0 extra days in 1991 and 1992 (pieces of 4 and 5 < 6); span gives 4 in 1991 and 5 in 1992
+
+2. thresholds available for tmax: outbase, inbase 
+   climdex.wsdi body mentions 'outbase': TRUE  'inbase': FALSE 
+{
+    stopifnot(!is.null(ci@data$tmax) && !is.null(ci@quantiles$tmax))
+    return(threshold.exceedance.duration.index(ci@data$tmax, 
+        ci@date.factors$annual, ci@jdays, ci@quantiles$tmax$outbase$q90, 
+        ">", spells.can.span.years = spells.can.span.years, max.missing.days = ci@max.missing.days["annual"]) * 
+        ci@namasks$annual$tmax)
+} 
+
+   1975 (a base year) counts the 7-day July spell: 7 days
