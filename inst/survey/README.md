@@ -30,7 +30,7 @@ the source or from running the code.
 | phenofit 0.3.11 (land phenology) | source read 2026-11-18, not run | [phenofit.md](phenofit.md) |
 | marineHeatWaves `d7292bf`, xmhw 1.0.0 (Python) | source read 2026-11-18, not run; one xarray check | [python-mhw.md](python-mhw.md) |
 | xclim 1.0 (Python) | source read 2026-11-18, not run | [xclim.md](xclim.md) |
-| estimators (DINEOF, DINCAE, 4DVarNet, L4 methods) | to do | separate short grid |
+| estimators (interp, DINEOF, DINCAE, 4DVarNet, DIRECT, OISST, MUR, DUACS, GlobColour gap-free) | papers and product documents read 2026-11-18 | [estimators.md](estimators.md), grid in `estimators.csv` |
 
 ## Findings so far that change the brief
 
@@ -226,6 +226,25 @@ the source or from running the code.
 43. **xclim's day-of-year slots** are calendar numbers, misaligned in
     leap years, with 365 values stretched onto 366. Its WSDI won't match
     climdex.pcic's exactly.
+44. **The providers' L4s already carry a variance:** OISST's error field,
+    MUR's `analysis_error` and DUACS's formal mapping error. So do DINCAE
+    and DINEOF (error maps), and DIRECT (an ensemble). GlobColour's
+    gap-free chlorophyll flags interpolated pixels. These are the support
+    columns the brief's estimator contract asks for.
+45. **No gap-filler or L4 product is validated on extremes**, only on
+    overall error. The one extremes test found is Schlegel et al. (2019)
+    on linear interpolation of random single-day gaps in OISST: under
+    25% missing barely matters, up to 50% is acceptable when filled, and
+    duration is the metric most affected.
+46. **None is shown to be stationary, and some have known breaks:**
+    OISST v2.1's improvements apply from 1 January 2016 (Argo, MetOp-B,
+    revised ship–buoy and ice handling). MUR's sensors change. DUACS's
+    all-satellite constellation changes, and the two-satellite C3S
+    product exists for stability. GlobColour's gap-free scheme changed in
+    2018.
+47. **Chlorophyll L4s use different estimators by region:** kriging OI
+    (global and Atlantic GlobColour, Saulquin et al. 2018) and modified
+    DINEOF (Mediterranean and Black Sea).
 
 Finding 41's `maxPadLength` point was checked against xarray 2026.9.0
 (`checks/xarray-maxgap.py`, output in `checks/xarray-maxgap.out`).

@@ -655,9 +655,15 @@ names the estimator. Several estimators satisfy that contract:
 
 - `interp(n)`;
 - the space-time kernel;
-- the provider's own L4 analysis (OISST and MUR are already optimal
-  interpolation analyses, and DUACS SLA is mapped by OI, so spells on
-  them already run on someone else's estimator);
+- the provider's own L4 analysis (OISST is an optimal interpolation,
+  MUR a multi-resolution variational analysis, and DUACS SLA is mapped
+  by OI, so spells on them already run on someone else's estimator).
+  Their error fields are the variance in the contract: OISST's error
+  field, MUR's `analysis_error`, DUACS's formal mapping error.
+  GlobColour's gap-free chlorophyll flags interpolated pixels. The def
+  records the estimator's version and its known processing breaks
+  (OISST v2.1 from 2016, the SLA constellation, GlobColour's 2018
+  change; see `inst/survey/estimators.md`);
 - learned estimators.
 
 The kernel formula is Nadaraya-Watson regression, and transformer
@@ -681,11 +687,18 @@ The guardrails for learned estimators:
 - **Judge on extremes, not RMSE.** Models trained on mean-type losses
   shrink toward the mean, and spells measure exactly the tails. Score
   against withheld real observations (artificial clouds) on peak
-  intensity, duration and spell count.
+  intensity, duration and spell count. No gap-filler or provider L4 in
+  the survey reports this, so the test applies to the providers' L4s
+  as well. The one extremes test found (Schlegel et al. 2019) is of
+  linear interpolation of random single days in OISST: duration moves
+  most, and under 25% missing barely matters.
 - **Stationarity over the record.** If the estimator's skill or
   smoothness drifts as inputs change, which MUR already does across
   sensor eras, spell counts drift with it, and the drift looks like a
-  trend.
+  trend. Spell counts across a known break (OISST's 2016 change, AMSR-E
+  to AMSR2 for MUR, two-satellite against all-satellite SLA) show whether
+  the estimator or the ocean moved, and are worth publishing with the
+  trends.
 - **Keep physical units.** Detecting in embedding space loses degrees C
   and mg m-3, and with them the Hobday categories. Embeddings can set
   the context and the weights, but the threshold stays physical.
@@ -819,7 +832,11 @@ Packages to cover:
   DINCAE, 4DVarNet, the providers' L4 methods (OI for OISST, MRVA for
   MUR, DUACS mapping), and any gap-free L4 chl products (CMEMS
   GlobColour; check). Foundation models and embeddings belong only where
-  they give a similarity usable as K.
+  they give a similarity usable as K. *(done 2026-11-18 from papers and
+  product documents: `estimators.md`, `estimators.csv`. GlobColour's
+  gap-free chlorophyll is kriging OI (Saulquin et al. 2018); the
+  Mediterranean and Black Sea ones are modified DINEOF. Embeddings
+  weren't searched.)*
 
 The survey is in `inst/survey/`: `grid.csv`, plus a notes file per
 package and a findings list in its README.
