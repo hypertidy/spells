@@ -343,7 +343,7 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
   category reached, and the steps interpolated.
   - Onset and decline rates need a stated rule at the ends of the
     series, and tests there. marineHeatWaves and xmhw both divide by
-    zero for an event that peaks on the series' last day (xmhw checked
+    zero for an event that peaks on the series' last day (both checked
     by running). Spells marks a spell cut by either end of the series
     (at the end, the provisional tail) and gives no rate on that side.
   - Duration counts the joined gaps, so spells also report the steps
@@ -424,7 +424,11 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
 of switches for each version (`inst/survey/heatwaveR-versions.md`).
 marineHeatWaves (`d7292bf`, the original Python code) is a candidate
 fourth: stored outputs on a few pixels would show which of heatwaveR's
-behaviours are inherited (see `inst/survey/python-mhw.md`).
+behaviours are inherited (see `inst/survey/python-mhw.md`). It runs
+only under NumPy below 2, or with a two-line patch (checked), and a
+golden-output script must pass `climatologyPeriod` and a copy of the
+series on every call: the default period is written back after the
+first call, and by default NaNs in the input are overwritten.
 
 `heatwaveR-0.5.5` is what trend.sst matches now (from `R/mhw.R`):
 - NA is set to seas after `maxPadLength` interpolation;
@@ -822,9 +826,9 @@ Packages to cover:
   - land phenology (e.g. phenofit) *(done 2026-11-18 from the source,
     not run: `phenofit.md`)*
 - Python: xclim (`run_length`, the spell indicators), marineHeatWaves,
-  xmhw. *(done 2026-11-18 from the source; xmhw's points checked by
-  running, with one xarray check; xclim and marineHeatWaves not run:
-  `xclim.md`, `python-mhw.md`)*
+  xmhw. *(done 2026-11-18 from the source; xmhw's and marineHeatWaves'
+  points checked by running, marineHeatWaves on a NumPy 2 patched copy,
+  with one xarray check; xclim not run: `xclim.md`, `python-mhw.md`)*
 - Near-real-time and operational prior art, for presentation:
   - the Marine Heatwave Tracker (heatwave3 on OISST, two baselines);
   - NOAA PSL forecasts;

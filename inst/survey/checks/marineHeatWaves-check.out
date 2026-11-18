@@ -1,0 +1,38 @@
+marineHeatWaves 0.28  numpy 2.5.1 
+
+unmodified detect(): ValueError: setting an array element with a sequence.
+patched x1: doy[tt] = doy_leapYear[(month_leapYear == month[tt]) * (day_leapYear == day[tt])]  ->  ...day[tt])][0]
+patched x1: doyClim[i] = doy_leapYear[(month_leapYear == monthClim[i]) * (day_leapYear == dayClim[i])]  ->  ...Clim[i])][0]
+patched x4: np.NaN  ->  ...np.nan
+
+0. detect.__defaults__[0] before any call: [None, None]
+   after detect() on a 2001-2002 series: [np.float64(2001.0), np.float64(2002.0)]
+   next call, a 1999-2004 series with the default: thresholds equal to climatologyPeriod=[1999, 2004]? False
+   max difference: 0.4922 
+
+   [RuntimeWarning: invalid value encountered in scalar divide]
+   (climatology check: seas 20.0000, thresh 21.0000 on day 50)
+
+   events found (index_start, duration): [(0, 7), (50, 7), (200, 14), (361, 8), (724, 6)] 
+
+1. 7-day event on days 0-6: index_start 0 duration 7
+   (xmhw: index_start 1, duration 6)
+
+2. event from day 50, peak 24 on its first day, day 49 at seas: rate_onset 4.0  (xmhw: 1.3333)
+
+3. event on the last 6 days (to index 729), peak on the last day:
+   index_end 729  index_peak 729  rate_decline nan  (comment's rule: 1-day period, so 0)
+
+4. two 6-day runs at category 2 joined across a 2-day gap: duration 14  category days 12  (strong 12 )
+
+5. event 2001-12-28 to 2002-01-04  intensity_cumulative 23.9818
+   2001: count 4, total_icum 59.9841, sum of icum of events starting in 2001: 83.9659
+   2002: count 1, total_icum 37.9681, sum of icum of events starting in 2002: 13.9863
+   (the comment: 'icum for a MHW is assigned to its start year')
+
+6. maxPadLength=False: events (index_start, duration) [(105, 5)] ; caller's array still has its NaN: False
+6. maxPadLength=1: events (index_start, duration) [(100, 10)] ; caller's array still has its NaN: True
+
+7. thresh for 1 January, climatology period 1991-1998, no smoothing: 21.20126
+   90th percentile of the pool with the days outside the period (Dec 1990): 21.20126 ; without them: 21.191796
+   29 Feb thresh 21.119685 ; mean of 28 Feb and 1 Mar 21.119685

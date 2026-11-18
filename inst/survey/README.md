@@ -28,7 +28,7 @@ the source or from running the code.
 | anomaly 4.3.3 (CAPA) | source read 2026-11-18; checks run | [anomaly.md](anomaly.md) |
 | iglu 4.2.2 | source read 2026-11-18, not run | [iglu.md](iglu.md) |
 | phenofit 0.3.11 (land phenology) | source read 2026-11-18, not run | [phenofit.md](phenofit.md) |
-| marineHeatWaves `d7292bf`, xmhw 1.0.0 (Python) | source read 2026-11-18; xmhw checks run, marineHeatWaves not run; one xarray check | [python-mhw.md](python-mhw.md) |
+| marineHeatWaves `d7292bf`, xmhw 1.0.0 (Python) | source read 2026-11-18; checks run for both (marineHeatWaves on a NumPy 2 patched copy); one xarray check | [python-mhw.md](python-mhw.md) |
 | xclim 1.0 (Python) | source read 2026-11-18, not run | [xclim.md](xclim.md) |
 | estimators (interp, DINEOF, DINCAE, 4DVarNet, DIRECT, OISST, MUR, DUACS, GlobColour gap-free) | papers and product documents read 2026-11-18 | [estimators.md](estimators.md), grid in `estimators.csv` |
 
@@ -217,7 +217,12 @@ the source or from running the code.
     in ways worth pinning down:** its window reaches outside the
     climatology period when data exists, it doesn't interpolate missing
     values by default (its docstring says it does), it has no
-    trailing-gap join, and joined gap days fall in no category.
+    trailing-gap join, and joined gap days fall in no category. All
+    checked by running, along with `total_icum` going to the last year of
+    an event across 1 January. As installed (0.28) it doesn't run under
+    NumPy 2, its default climatology period is written back into the
+    function's default so later calls reuse it, and by default it
+    overwrites the missing values in the caller's array.
 41. **xmhw isn't a faithful port** (checked by running): an event that
     starts on the series' first day loses that day, the onset period for
     first-day peaks is 1.5 days instead of 0.5, block `extreme_days`
@@ -285,5 +290,12 @@ and climdex.pcic from GitHub at `011cb78`. Each script writes its own
   duplicated `hwyear()` is live);
 - `xarray-maxgap.py`: xarray's `max_gap` with an integer on a date axis
   (finding 41);
-- `xmhw.py`: xmhw 1.0.0, installed by the user into the system Python,
-  run with `python3 -I` (finding 41).
+- `xmhw-check.py`: xmhw 1.0.0, installed by the user into the system Python,
+  run with `python3 -I` (finding 41);
+- `marineHeatWaves-check.py`: marineHeatWaves 0.28, installed by the user
+  into the system Python. It fails as installed under NumPy 2.5.1, so the
+  script loads a copy patched in memory with two NumPy 2 fixes and prints
+  them (finding 40).
+
+The Python scripts end in `-check` so they can't shadow the package
+they import.

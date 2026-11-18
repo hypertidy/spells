@@ -1,7 +1,8 @@
 # Checks for inst/survey/python-mhw.md, the xmhw points marked "to confirm",
 # plus the decline rate of an event that peaks on the series' last day, and
 # whether block_average() runs.
-# Run: python3 -I xmhw.py > xmhw.out 2>&1
+# Run: python3 -I xmhw-check.py > xmhw-check.out 2>&1
+# (Named -check so that it cannot shadow the xmhw package.)
 #
 # The threshold and climatology are set by hand (seas = 20, thresh = 21 on
 # every day of year), so thresh - seas = 1 and a day's category is

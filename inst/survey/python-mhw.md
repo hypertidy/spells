@@ -10,24 +10,32 @@
     Climate Extremes (Paola Petrelli). An xarray/dask rewrite of
     marineHeatWaves.
 - **How:** read 2026-11-18 from source. xmhw was then checked by running
-  the same day (`checks/xmhw.py` and `.out`). xmhw 1.0.0 was installed by
+  the same day (`checks/xmhw-check.py` and `.out`). xmhw 1.0.0 was installed by
   the user into the system Python, and its files are identical to the
   source read. The libraries were xarray 2026.9.0, pandas 2.3.3 and numpy
   2.5.1. One xarray behaviour that xmhw relies on was checked too
-  (`checks/xarray-maxgap.py`). marineHeatWaves was **not run**: its
-  values below are worked from its code. Points marked *(checked)* were
-  confirmed by running xmhw; *(to confirm)* ones are read from the code.
+  (`checks/xarray-maxgap.py`).
+- marineHeatWaves 0.28 was installed by the user too (the file is
+  identical to `d7292bf`) and checked by running
+  (`checks/marineHeatWaves-check.py` and `.out`). **As installed, it
+  doesn't run with NumPy 2** (2.5.1 here): `detect()` stops at once with
+  "setting an array element with a sequence" (line 207). It also uses
+  `np.NaN`, which NumPy 2.0 removed. The checks ran on a copy patched in
+  memory with only those two fixes (`[0]` on the two day-of-year lookups,
+  and `np.NaN` → `np.nan`). Points marked *(checked)* were confirmed by
+  running.
 
 ## marineHeatWaves `detect()`
 
 - **Slots:** 366, through a 2012 calendar. 29 February is skipped when
   pooling; its threshold and climatology are then the mean of 28
-  February's and 1 March's. No rounding.
+  February's and 1 March's *(checked)*. No rounding.
 - **Window:** ±5 days (`windowHalfWidth`) **in the time index**, around
   every occurrence of the slot in the climatology period. Indices are
   limited only by the ends of the input series, so **at the ends of the
   climatology period the window takes days from outside it** when the
-  series extends further. heatwaveR 1.0.0 shortens the window there
+  series extends further *(checked: 1 January's threshold for 1991–1998
+  matched the pool including December 1990)*. heatwaveR 1.0.0 shortens the window there
   instead, and 0.5.5 wraps within the year.
 - **Statistics:** `np.nanpercentile` (linear, type 7) and `np.nanmean`, so
   missing values drop out of the pool.
@@ -35,6 +43,14 @@
   periodic (`runavg()`).
 - **Climatology period:** defaults to the whole record;
   `alternateClimatology` takes another series for the baseline.
+  - *(checked)* **The default is written back.** `climatologyPeriod`
+    defaults to a list, `[None, None]`, that `detect()` fills in place,
+    so the function's default becomes the first series' years. The
+    next call that relies on the default uses those years. In the check,
+    a 1999–2004 series after a 2001–2002 one got a 2001–2002
+    climatology (thresholds up to 0.49 °C off). A series that doesn't
+    cover those years fails. Any loop over pixels or stations with
+    different records has to pass the period every time.
 - **Missing data, and a doc mismatch:** the docstring says the default
   `maxPadLength = False` "interpolates over all missing values". The code
   only calls `pad()` when `maxPadLength` is truthy, so **by default
@@ -42,6 +58,14 @@
   climatology, so they break events. With `maxPadLength = n`, runs of up
   to n are interpolated linearly, and `np.interp` fills leading and
   trailing runs with the nearest valid value.
+  - *(checked)* A 10-day event with one missing day came back as one
+    5-day event by default (the 4 days before the gap are too short),
+    and as the whole 10 days with `maxPadLength = 1`.
+  - *(checked)* **By default the caller's array is changed:** its
+    missing values are overwritten with the climatology, because
+    `detect()` writes into the array it was given. With `maxPadLength`
+    set, `pad()` makes a copy first, so the caller's array is left
+    alone.
 - **Exceedance:** `temp − thresh > 0`, strict. Runs by `ndimage.label`.
 - **Persistence:** runs of at least `minDuration` (5) first, then joining
   of gaps up to `maxGap` (2) between them. No special case at the end of
@@ -51,16 +75,23 @@
   cumulative), the peak by the anomaly, and onset and decline rates that
   assume the event starts and ends half a day beyond its first and last
   days.
+  - *(checked)* An event on the series' first days keeps its first day
+    (start index 0, duration 7, where xmhw gives 1 and 6). An event that
+    peaks on its first day, after a day at the climatology, has an onset
+    rate of 4.0 for a peak anomaly of 4 (period 0.5 day; xmhw 1.333).
   - **The decline period at the series end tests the wrong thing.** The
     comment says that if the peak is on the series' last day, the
     period is 1 day. The code tests `tt_peak == T − 1`, but `tt_peak`
     counts from the event's start, so it's almost never true. An event
     that ends on the last day and peaks there gets a period of 0, so a
-    rate of 0/0. xmhw copied the test and gives NaN *(checked in xmhw)*.
+    rate of 0/0. *(checked: NaN, with a RuntimeWarning.)* xmhw copied
+    the test and gives NaN too.
 - **Categories:** `floor(1 + (temp − thresh) / (thresh − seas))` per
   day; the event's category is the highest, capped at 4. **Joined gap
   days below the threshold fall in no category**, so with gaps joined,
-  `duration_moderate` + … + `duration_extreme` is less than `duration`.
+  `duration_moderate` + … + `duration_extreme` is less than `duration`
+  *(checked: two 6-day runs joined across 2 days gave duration 14 and
+  12 category days)*.
   (The brief's trend.sst rule counts them as category I.)
 - **Cold spells:** the series is negated, so the threshold is the 10th
   percentile under linear interpolation.
@@ -68,10 +99,12 @@
   - counts, durations, intensities and rates go to **the start year**;
   - `total_days` is split by year;
   - category days count by the year of each day;
-  - *(to confirm)* `total_icum`: the comment says "assigned to its start
+  - *(checked)* `total_icum`: the comment says "assigned to its start
     year", but for an event that spans years, `iBlock` has just been
     reused in the loop over years, so it goes to **the last year** of
-    the event;
+    the event. An event from 28 December 2001 to 4 January 2002 (icum
+    23.98) was counted in 2002's `total_icum`, while its count, means
+    and rates went to 2001;
   - blocks with no events get NaN means and a count of 0;
   - `removeMissing` sets blocks with any missing day to NaN.
 
@@ -148,7 +181,10 @@
    - gap days outside every category.
 
    Storing its outputs on a few pixels would pin down which of heatwaveR's
-   behaviours are inherited and which are heatwaveR's own.
+   behaviours are inherited and which are heatwaveR's own. Running it
+   now needs NumPy below 2, or the two-line patch the check applies; a
+   golden-output script should record which, and pass
+   `climatologyPeriod` and a copy of the series on every call.
 2. **The window at the ends of the climatology period now has three
    implementations:** outside data (marineHeatWaves), shorter (heatwaveR
    1.0.0, xmhw), and a wrap (heatwaveR 0.5.5). The brief lists the
