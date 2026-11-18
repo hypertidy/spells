@@ -273,11 +273,19 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
   - **A minimum on the peak** is another opening: detect at one level
     and keep the spells whose peak reaches another (hydroEvents'
     `eventMaxima()`). Unlike hysteresis, the start and end stay at the
-    detection level.
+    detection level. A minimum on cumulative intensity, or on length ×
+    mean² as CAPA's segment test has it, weighs duration and intensity
+    together.
   - **Minimum sizes are fixed values**, never relative to the data set,
-    such as lfstat's default of 0.5% of the largest event's volume or
-    Ocetrac's area percentile. Relative values change past events as data
+    such as lfstat's default of 0.5% of the largest event's volume,
+    Ocetrac's area percentile, or a penalty that grows with the series
+    length (CAPA's 3 log n). Relative values change past events as data
     is added.
+  - **Other detectors could plug in after the baseline.** CAPA (the
+    anomaly package) replaces threshold → spell with a penalised
+    segmentation of the standardised series. If a detector only has to
+    return (start, end) spells, metrics and summaries apply unchanged.
+    Keep that seam open; don't build it now.
 - **missing data** is a separate policy from sub-threshold gaps, because
   an observation gap isn't a sub-threshold gap. The options are:
   interpolate up to n steps, then count as baseline (heatwaveR); break
@@ -458,6 +466,8 @@ st <- spell_state(...); spell_step(st, x_today, b, def)   # streaming
   reproduce the batch mask except for a declared **provisional tail**
   (about `max(min_duration, max_gap + 1)` steps), the same idea as
   trend.sst's daily run recomputing GHRSST's provisional dates.
+  Segmentation methods (CAPA's `epoch =`) revise with no fixed bound,
+  which is another reason they stay outside the core.
 - **The baseline is the expensive, reusable artefact**: build and publish
   it once per (source, period, def), then read it many times.
 - **Family rules carry over**:
@@ -527,6 +537,10 @@ an oracle for this. From Ocetrac (see the survey):
   overlap between adjacent frames with a containment threshold, which
   limits how far chains of merges can run. The def names the rule and
   its connectivity.
+- **Without adjacency:** MVCAPA (the anomaly package) treats an event over
+  many series as a segment shared by a subset of them, each with its own
+  start and end lag. That suits stations and regions, where there's no
+  neighbour table.
 - **Weighted area:** area filters and sums use cell area (grist weights),
   not cell counts, which is what Ocetrac uses.
 - **No dataset-relative thresholds:** Ocetrac's minimum area is a
@@ -732,7 +746,8 @@ Packages to cover:
     `hydroEvents.md`, `eflowstats.md`)*
   - extRemes, evd, POT (runs declustering) *(done 2026-11-18 from the
     source, not run: `declustering.md`, `hwmi.md`)*
-  - anomaly (CAPA)
+  - anomaly (CAPA) *(done 2026-11-18 from the source, not run:
+    `anomaly.md`)*
   - iglu
   - land phenology (e.g. phenofit)
 - Python: xclim (`run_length`, the spell indicators), marineHeatWaves,

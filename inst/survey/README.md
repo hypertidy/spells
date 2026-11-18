@@ -25,7 +25,7 @@ the source or from running the code.
 | EflowStats 5.2.0 | source read 2026-11-18, not run | [eflowstats.md](eflowstats.md) |
 | extRemes 2.2-1 | source read 2026-11-18, not run | [declustering.md](declustering.md), [hwmi.md](hwmi.md) |
 | evd 2.3-7.1, POT 1.1-12 | source read 2026-11-18, not run | [declustering.md](declustering.md) |
-| anomaly (CAPA) | to do | |
+| anomaly 4.3.3 (CAPA) | source read 2026-11-18, not run | [anomaly.md](anomaly.md) |
 | iglu | to do | |
 | phenofit (land phenology) | to do | |
 | xclim, marineHeatWaves, xmhw (Python) | to do | |
@@ -177,6 +177,16 @@ the source or from running the code.
     yearly summary is the largest heatwave with its duration and start,
     it drops 31 December in leap years, and it cuts heatwaves at
     1 January.
+33. **CAPA (anomaly) finds anomalous segments by penalised cost, not
+    by threshold and persistence.** It keeps a segment when length ×
+    mean² beats a penalty, finds raised and lowered segments together,
+    and assumes the series is already standardised with no seasonal
+    cycle. Not an oracle, but a detector that could plug in after
+    spells' baseline, and the source of an evidence-based opening.
+34. **CAPA's results are sequential and revise** (`epoch =`), and its
+    default penalties grow with the series length. MVCAPA defines an
+    event over many series as co-occurrence with lags, with no
+    adjacency.
 
 Findings 2 to 5 were confirmed by running (`checks/heatwave3.R`, output
 in `checks/heatwave3.out`). The details are in heatwave3.md, "Checked by
