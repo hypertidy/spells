@@ -60,7 +60,7 @@ the heatwave3 package.
   diff, 4)`, and so on up to 4x. Joined gap days below the threshold,
   and missing days, get no category. Checked for 0.5.5: spells' parity
   mode reproduces it on every case of its parity tests
-  (`tests/testthat/test-parity-heatwaveR-0.5.5.R`).
+  (`tests/testthat/test-parity-heatwaveR.R`).
 - **Climatology length:** at least 1095 days, and the period must lie
   inside the data. Otherwise `ts2clm()` stops with an error.
 
@@ -80,6 +80,11 @@ comparison adds two items to it (marked †):
 | `seas`/`thresh` rounding | 4 | 4 | 4 |
 | Feb 29 fill | `round(mean, 2)` | `round(mean, 2)` | `round(mean, 2)` |
 | Moderate category | `>=` | `>=` | `>=` |
+
+Both heatwaveR columns are now spells parity modes, reproduced on
+stored outputs (`tests/testthat/test-parity-heatwaveR.R`): on gap-free
+reference periods, the window and trailing-gap rows are the only
+differences between them.
 
 trend.sst `R/mhw.R` wraps within the year (its header and the `pad`
 index in `mhw_clim()`), as 0.5.5 does. It also stops on any missing

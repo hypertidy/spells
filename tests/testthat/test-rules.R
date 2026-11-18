@@ -37,11 +37,12 @@ test_that("category rules", {
 test_that("definitions refuse what isn't implemented", {
   ref <- c("1982-01-01", "2011-12-31")
   expect_error(hobday2016(ref), "clean rules")
-  expect_error(hobday2016(ref, parity = "heatwaveR-1.0.0"), "isn't implemented yet")
+  expect_error(hobday2016(ref, parity = "heatwave3-1.5.0"), "isn't implemented yet")
   expect_error(hobday2016(ref, parity = "heatwaveR-9"), "unknown parity mode")
   expect_error(hobday2016(c("1982-02-01", "2011-12-31"), parity = "heatwaveR-0.5.5"), "whole years")
   expect_s3_class(hobday2016(ref, parity = "heatwaveR-0.5.5"), "spell_def")
-  expect_true(all(c("heatwaveR-0.5.5", "heatwaveR-1.0.0") %in% parity_modes()$parity))
+  pm <- parity_modes()
+  expect_identical(pm$parity[pm$implemented], c("heatwaveR-0.5.5", "heatwaveR-1.0.0"))
 })
 
 test_that("inputs are checked", {

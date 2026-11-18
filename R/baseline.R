@@ -66,19 +66,52 @@ clim_window_pooled <- function(x, time, def) {
                               arr[61L, f29, , drop = FALSE]) / 2, 2)
   }
   if (anyNA(arr)) stop("reference years must be whole years")
-  if (!identical(rules$window_ends, "wrap")) stop("only the wrapped window is implemented")
-  ## the window wraps within each year at the new year
-  pad <- c(utils::tail(seq_len(366L), half), seq_len(366L), utils::head(seq_len(366L), half))
+  ## Pad the slots by the window's half width at each end, so slot i's
+  ## window is padded rows i to i + 2 * half.
+  ##  wrap:    within each year, 1 January's window takes 27-31 December
+  ##           of the same year (heatwaveR 0.5.5)
+  ##  shorten: on through the adjacent years, 1 January's window takes
+  ##           27-31 December of the year before; the reference period's
+  ##           first and last years have nothing there, so their windows
+  ##           are shorter (heatwaveR 1.0.0)
+  head_rows <- utils::tail(seq_len(366L), half)
+  tail_rows <- utils::head(seq_len(366L), half)
+  padded <- switch(rules$window_ends,
+    wrap = arr[c(head_rows, seq_len(366L), tail_rows), , , drop = FALSE],
+    shorten = {
+      before <- after <- array(NA_real_, c(half, ny, np))
+      if (ny > 1L) {
+        before[, -1L, ] <- arr[head_rows, -ny, , drop = FALSE]
+        after[, -ny, ] <- arr[tail_rows, -1L, , drop = FALSE]
+      }
+      abind_rows(before, arr, after)
+    },
+    stop("unknown window_ends rule \"", rules$window_ends, "\""))
+  ## where a window is short, the statistics use the values it has
+  short <- anyNA(padded)
   seas <- thresh <- matrix(NA_real_, 366L, np)
   for (i in seq_len(366L)) {
-    rows <- pad[i:(i + 2L * half)]
-    pool <- matrix(arr[rows, , , drop = FALSE], ncol = np)   # one column per series
-    seas[i, ] <- colMeans(pool)
-    thresh[i, ] <- matrixStats::colQuantiles(pool, probs = def$threshold$p,
-                                             type = 7L, useNames = FALSE)
+    pool <- matrix(padded[i:(i + 2L * half), , , drop = FALSE], ncol = np)   # one column per series
+    seas[i, ] <- colMeans(pool, na.rm = short)
+    thresh[i, ] <- matrixStats::colQuantiles(pool, probs = def$threshold$p, type = 7L,
+                                             na.rm = short, useNames = FALSE)
   }
   out <- list(seas = running_mean_366(seas, smooth), thresh = running_mean_366(thresh, smooth))
   if (!is.null(rules$round)) out <- lapply(out, round, rules$round)
+  out
+}
+
+## Stack 3-d arrays along their first dimension.
+abind_rows <- function(...) {
+  a <- list(...)
+  d <- dim(a[[1L]])
+  out <- array(NA_real_, c(sum(vapply(a, function(z) dim(z)[1L], 0L)), d[2L], d[3L]))
+  at <- 0L
+  for (z in a) {
+    n <- dim(z)[1L]
+    if (n) out[at + seq_len(n), , ] <- z
+    at <- at + n
+  }
   out
 }
 

@@ -9,8 +9,8 @@ products.
 
 **Status: early.** The design is in [BRIEF.md](BRIEF.md), and the survey
 of other packages behind it in [inst/survey/](inst/survey/). Phase 1 has
-started with parity: spells reproduces heatwaveR 0.5.5 and the engine in
-trend.sst's `R/mhw.R`. spells' own clean rules aren't implemented yet.
+started with parity: spells reproduces heatwaveR 0.5.5 and 1.0.0, and
+the engine in trend.sst's `R/mhw.R`. spells' own clean rules aren't implemented yet.
 
 ```r
 library(spells)
@@ -29,7 +29,7 @@ in `tests/testthat/fixtures/`, so the tests need none of them installed.
 | mode | status |
 |---|---|
 | `heatwaveR-0.5.5` | implemented: climatology, event days, daily categories |
-| `heatwaveR-1.0.0` | outputs stored, mode planned |
+| `heatwaveR-1.0.0` | implemented: climatology, event days, daily categories |
 | `heatwave3-1.5.0` | outputs stored, mode planned (heatwave3 is a test oracle only) |
 
 The test series are heatwaveR's `sst_WA`, `sst_Med` and `sst_NW_Atl`

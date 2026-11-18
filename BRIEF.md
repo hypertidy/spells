@@ -914,9 +914,12 @@ area metrics as sums, and the ice mask.
    and trend.sst's `R/mhw.R` bit for bit with `categories()`. The
    stored outputs of heatwaveR 1.0.0 and heatwave3 1.5.0 for the same
    cases are in `tests/testthat/fixtures/`, ready for their modes
-   (`data-raw/golden.R` makes them all). Next: the 1.0.0 and heatwave3
-   modes, event metrics (`spell_events()`), and the fill of
-   reference-period gaps. Moving
+   (`data-raw/golden.R` makes them all). *`heatwaveR-1.0.0` done the
+   same day*, as two switches on the 0.5.5 mode: the window at the new
+   year (`window_ends = "shorten"`) and the trailing gap. Each mode fails
+   the other's stored outputs on 37-48 values per case, so the tests
+   tell them apart. Next: the heatwave3 mode, event metrics
+   (`spell_events()`), and the fill of reference-period gaps. Moving
    trend.sst to clean rules is a separate, visible step, and its labels
    say which rules it uses.
 2. **Generality gate 1 (ice)**: re-express trend.ice's ice season through

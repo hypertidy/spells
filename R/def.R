@@ -7,14 +7,14 @@
 #' a 31-day running mean, the 90th percentile as the threshold, at least
 #' 5 days above it, and gaps of 2 days or fewer joined.
 #'
-#' Only the heatwaveR 0.5.5 parity mode is implemented so far. The clean
+#' Only the heatwaveR parity modes are implemented so far. The clean
 #' rules (spells' own defaults) come once their open choices are settled;
 #' until then `parity` must be given.
 #'
 #' @param reference The reference period: two dates, the first and last
 #'   day. It must be whole years.
 #' @param parity The engine and version whose behaviour to reproduce:
-#'   `"heatwaveR-0.5.5"`. See [parity_modes()].
+#'   `"heatwaveR-0.5.5"` or `"heatwaveR-1.0.0"`. See [parity_modes()].
 #' @param category How each step in a spell gets its category, from
 #'   [categories()]. The default is the parity mode's own rule.
 #' @return A `spell_def`.
@@ -98,9 +98,24 @@ parity_registry <- list(
       trailing_gap = TRUE       # a gap of max_gap or fewer at the series end is joined
     ),
     category = categories(compare = ">", round = 4L, gap_days = "none")
+  ),
+  ## 1.0.0 (robwschlegel/heatwaveR @e0ae30d): the window runs on through
+  ## the adjacent years at the new year, shorter at the reference ends
+  ## (R/clim_spread.R), and the trailing gap isn't joined (R/proto_event.R)
+  "heatwaveR-1.0.0" = list(
+    rules = list(
+      window_ends = "shorten",
+      feb29 = "neighbours",
+      round = 4L,
+      reference_missing = "stop",
+      missing = "baseline",
+      leading_gap = FALSE,
+      trailing_gap = FALSE
+    ),
+    category = categories(compare = ">", round = 4L, gap_days = "none")
   )
 )
-parity_planned <- c("heatwaveR-1.0.0", "heatwave3-1.5.0")
+parity_planned <- c("heatwave3-1.5.0")
 
 #' Parity modes
 #'
