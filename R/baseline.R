@@ -21,7 +21,10 @@
 #'   no baseline. With a parity mode it is the engine's answer on the
 #'   series masked to `NA` there.
 #' @return A `spell_baseline`: the def, and `seas` (the baseline) and
-#'   `thresh` (the threshold), each a 366 x series matrix by slot.
+#'   `thresh` (the threshold), each a 366 x series matrix by slot. With
+#'   a detrended baseline, also `trend`: the slope per series (per day),
+#'   the date it's centred on (the reference period's midpoint), and
+#'   whether detection adds it to `seas` and `thresh` at each step.
 #' @export
 #' @examples
 #' x <- 20 + 2 * sin(2 * pi * seq_len(3653) / 365.25) + rnorm(3653, sd = 0.5)
@@ -38,10 +41,57 @@ spell_baseline <- function(x, time, def, eligible = NULL) {
   if (min(time) > ref[1] || max(time) < ref[2]) {
     stop("`time` doesn't cover the reference period, ", format(ref[1]), " to ", format(ref[2]))
   }
-  fit <- clim_window_pooled(x, time, def)
   inb <- time >= ref[1] & time <= ref[2]
+  trend <- NULL
+  if (def$baseline$type == "detrended") {
+    trend <- fit_trend(x, time, def)
+    x <- x - outer(as.numeric(time) - as.numeric(trend$centre), trend$slope)
+  }
+  fit <- clim_window_pooled(x, time, def)
   structure(list(def = def, seas = fit$seas, thresh = fit$thresh, series = colnames(x),
-                 ineligible = sum(!el[inb, ])), class = "spell_baseline")
+                 trend = trend, ineligible = sum(!el[inb, ])), class = "spell_baseline")
+}
+
+## A linear trend per series over the reference period, centred on its
+## midpoint.
+##  anomalies (clean): least squares with a mean per slot: fitted to the
+##             anomalies from each slot's own mean over the reference
+##             years, so the seasonal cycle can't leak into it, uneven
+##             coverage of the seasons across the years doesn't bias it,
+##             and an added linear trend changes it by exactly that
+##             trend (anomalies from the smoothed climatology would lose
+##             part of the trend within each year); detection reads it
+##  heatwave3: fitted to the daily values, with heatwave3's sums
+##             (src/climatology.cpp; no trend with 2 values or fewer);
+##             the climatology only, detection on the series as it is
+fit_trend <- function(x, time, def) {
+  ref <- def$reference
+  inb <- time >= ref[1] & time <= ref[2]
+  centre <- as.numeric(ref[1]) + (as.numeric(ref[2]) - as.numeric(ref[1])) / 2
+  t <- as.numeric(time[inb]) - as.numeric(ref[1])
+  how <- def$rules$detrend
+  if (!how %in% c("anomalies", "heatwave3")) stop("unknown detrend rule \"", how, "\"")
+  y <- x[inb, , drop = FALSE]
+  slot <- slot_366(time[inb])
+  slope <- vapply(seq_len(ncol(y)), function(j) {
+    ok <- !is.na(y[, j])
+    tj <- t[ok]
+    yj <- y[ok, j]
+    n <- length(yj)
+    if (how == "heatwave3") {
+      if (n <= 2L) return(0)
+      mt <- sum(tj) / n
+      my <- sum(yj) / n
+      return((sum(tj * yj) - n * mt * my) / (sum(tj * tj) - n * mt * mt))
+    }
+    if (n < 2L) return(NA_real_)
+    sj <- slot[ok]
+    dt <- tj - stats::ave(tj, sj)
+    den <- sum(dt * dt)
+    if (den == 0) return(NA_real_)
+    sum(dt * (yj - stats::ave(yj, sj))) / den
+  }, 0)
+  list(model = "linear", slope = slope, centre = as.Date(centre), applied = how != "heatwave3")
 }
 
 ## Climatology: the window pooled over the reference years, its mean and
@@ -210,6 +260,11 @@ print.spell_baseline <- function(x, ...) {
   cat("<spell_baseline>", ncol(x$seas), "series, 366 slots;", x$def$name,
       if (!is.null(x$def$parity)) paste0("(parity ", x$def$parity, ")"),
       "reference", format(x$def$reference[1]), "to", format(x$def$reference[2]), "\n")
+  if (!is.null(x$trend)) {
+    cat("  detrended: slope", paste(signif(x$trend$slope * 3652.5, 3), collapse = ", "),
+        "per decade, centred on", format(x$trend$centre),
+        if (!x$trend$applied) "(climatology only: detection on the series as it is)", "\n")
+  }
   if (isTRUE(x$ineligible > 0)) cat("  ", x$ineligible, "ineligible steps in the reference period\n")
   invisible(x)
 }

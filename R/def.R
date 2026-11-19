@@ -47,6 +47,8 @@
 #' @param category How each step in a spell gets its category, from
 #'   [categories()]. The default is the clean rule, or the parity mode's
 #'   own.
+#' @param baseline The baseline type: [baseline_fixed()] (the default)
+#'   or [baseline_detrended()].
 #' @return A `spell_def`.
 #' @references Hobday, A. J. et al. (2016). A hierarchical approach to
 #'   defining marine heatwaves. Progress in Oceanography 141, 227-238.
@@ -62,29 +64,30 @@
 #' ref <- c("1982-01-01", "2011-12-31")
 #' hobday2016(ref)
 #' hobday2018(ref, parity = "heatwaveR-0.5.5")
+#' hobday2018(ref, baseline = baseline_detrended())
 #' schlegel2021(ref)
 NULL
 
 #' @rdname presets
 #' @export
-hobday2016 <- function(reference, parity = NULL) {
+hobday2016 <- function(reference, parity = NULL, baseline = baseline_fixed()) {
   mode <- rule_mode(parity)
-  spell_def("hobday2016", reference, mode$rules, parity = parity)
+  spell_def("hobday2016", reference, mode$rules, parity = parity, baseline = baseline)
 }
 
 #' @rdname presets
 #' @export
-hobday2018 <- function(reference, parity = NULL, category = NULL) {
+hobday2018 <- function(reference, parity = NULL, category = NULL, baseline = baseline_fixed()) {
   mode <- rule_mode(parity)
-  spell_def("hobday2018", reference, mode$rules, parity = parity,
+  spell_def("hobday2018", reference, mode$rules, parity = parity, baseline = baseline,
             category = if (is.null(category)) mode$category else category)
 }
 
 #' @rdname presets
 #' @export
-schlegel2021 <- function(reference, parity = NULL, category = NULL) {
+schlegel2021 <- function(reference, parity = NULL, category = NULL, baseline = baseline_fixed()) {
   mode <- rule_mode(parity)
-  spell_def("schlegel2021", reference, mode$rules, parity = parity,
+  spell_def("schlegel2021", reference, mode$rules, parity = parity, baseline = baseline,
             category = if (is.null(category)) mode$category else category,
             direction = "low", p = 0.1)
 }
@@ -98,17 +101,28 @@ rule_mode <- function(parity) {
 ## The general definition the presets fill in. Internal until generality
 ## gate 1 (the ice season) shows what's general.
 spell_def <- function(name, reference, rules, parity = NULL, category = NULL,
-                      direction = c("high", "low"), p = 0.9, window = 11L, smooth = 31L,
-                      min_duration = 5L, max_gap = 2L) {
+                      baseline = baseline_fixed(), direction = c("high", "low"), p = 0.9,
+                      window = 11L, smooth = 31L, min_duration = 5L, max_gap = 2L) {
   direction <- match.arg(direction)
   if (!is.null(category) && !inherits(category, "spell_categories")) {
     stop("`category` must come from categories()", call. = FALSE)
+  }
+  if (!inherits(baseline, "spell_baseline_type")) {
+    stop("`baseline` must come from baseline_fixed() or baseline_detrended()", call. = FALSE)
+  }
+  if (baseline$type == "detrended") {
+    if (is.null(rules$detrend)) {
+      stop(parity, " has no detrended baseline", call. = FALSE)
+    }
+    ## how this def fits the trend, and whether detection reads it
+    baseline$fit <- switch(rules$detrend, anomalies = "anomalies", heatwave3 = "daily values")
+    baseline$detection <- switch(rules$detrend, anomalies = "detrended", heatwave3 = "raw")
   }
   structure(list(
     name = name,
     slots = "366",
     reference = as_reference(reference),
-    baseline = list(type = "climatology", window = as.integer(window), smooth = as.integer(smooth)),
+    baseline = c(unclass(baseline), window = as.integer(window), smooth = as.integer(smooth)),
     threshold = list(type = "percentile", p = p),
     direction = direction,
     min_duration = as.integer(min_duration),
@@ -118,6 +132,53 @@ spell_def <- function(name, reference, rules, parity = NULL, category = NULL,
     parity = parity,
     rules = rules
   ), class = "spell_def")
+}
+
+#' Baseline types
+#'
+#' The baseline type is part of the def, and of every label made from it
+#' (Smith et al. 2025 name five: fixed, detrended, shifting,
+#' adaptation-adjusted and periodically updated).
+#'
+#' * `baseline_fixed()`: the climatology of the reference period, the
+#'   same for every year.
+#' * `baseline_detrended()`: a linear trend per series is fitted over the
+#'   reference period and removed, keeping the level at the period's
+#'   midpoint, and the climatology is fitted to the detrended series. The
+#'   baseline at each step is that climatology plus the trend, extrapolated
+#'   outside the reference period, so detection reads the detrended
+#'   series (Jacox et al. 2020) and adding data never changes past
+#'   spells. With the clean rules the trend is a least-squares fit with a
+#'   mean per slot: it is fitted to the anomalies from each slot's own
+#'   mean over the reference years, so the seasonal cycle can't leak into
+#'   it and seasons covered unevenly across the years (gaps, ice) don't
+#'   bias it. (A trend fitted to the daily values picks up the seasonal
+#'   cycle: on heatwaveR's three OISST series, -0.04 to +0.10 degrees C
+#'   per decade.) With `parity = "heatwave3-1.5.0"`
+#'   it is heatwave3's `detrend = TRUE`: the trend fitted to the daily
+#'   values, the climatology fitted to the detrended series, and
+#'   detection on the series as it is. The heatwaveR modes have no
+#'   detrended baseline.
+#'
+#' @return A `spell_baseline_type`.
+#' @references Jacox, M. G. et al. (2020). Thermal displacement by marine
+#'   heatwaves. Nature 584, 82-86. \doi{10.1038/s41586-020-2534-z}
+#'
+#'   Smith, K. E. et al. (2025). Baseline matters: challenges and
+#'   implications of different marine heatwave baselines. Progress in
+#'   Oceanography 231, 103404. \doi{10.1016/j.pocean.2024.103404}
+#' @export
+#' @examples
+#' hobday2018(c("1982-01-01", "2011-12-31"), baseline = baseline_detrended())
+baseline_fixed <- function() {
+  structure(list(type = "fixed"), class = "spell_baseline_type")
+}
+
+#' @rdname baseline_fixed
+#' @export
+baseline_detrended <- function() {
+  structure(list(type = "detrended", model = "linear", per = "series", period = "reference"),
+            class = "spell_baseline_type")
 }
 
 #' Category rules
@@ -177,6 +238,7 @@ clean_mode <- function(max_interp, coverage) {
       feb29 = "omit",              # non-leap years have no slot 60
       round = NULL,                # nothing rounded
       reference_missing = "omit",  # a missing day drops out of the window
+      detrend = "anomalies",       # a detrended baseline's trend: fitted to the anomalies
       coverage = coverage,         # share of the window's possible days a slot needs
       missing = "interpolate",     # runs of max_interp or fewer, between observed steps
       max_interp = as.integer(max_interp),
@@ -233,6 +295,9 @@ parity_registry <- list(
 parity_registry[["heatwave3-1.5.0"]] <- parity_registry[["heatwaveR-1.0.0"]]
 parity_registry[["heatwave3-1.5.0"]]$rules$reference_missing <- "omit"
 parity_registry[["heatwave3-1.5.0"]]$rules$rate_neighbour <- "observed"
+## detrend = TRUE: a trend fitted to the daily values over the
+## climatology period, removed for the climatology only (src/climatology.cpp)
+parity_registry[["heatwave3-1.5.0"]]$rules$detrend <- "heatwave3"
 parity_planned <- character()
 
 #' Parity modes
@@ -275,7 +340,11 @@ print.spell_def <- function(x, ...) {
   cat("<spell_def>", x$name,
       if (is.null(x$parity)) "(clean rules)" else paste0("(parity ", x$parity, ")"), "\n")
   cat("  reference:", format(x$reference[1]), "to", format(x$reference[2]), "\n")
-  cat("  baseline: ", x$baseline$type, "window", x$baseline$window, "smooth", x$baseline$smooth,
+  bl <- x$baseline
+  cat("  baseline: ", bl$type,
+      if (bl$type == "detrended") paste0("(linear per series, fitted to ", bl$fit,
+                                         ", detection on the ", bl$detection, " series)"),
+      "climatology, window", bl$window, "smooth", bl$smooth,
       "| threshold:", x$threshold$type, x$threshold$p, "|", x$direction, "\n")
   cat("  spells:    min_duration", x$min_duration, "max_gap", x$max_gap,
       paste0("(", x$order, ")"), "\n")

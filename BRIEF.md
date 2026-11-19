@@ -224,6 +224,16 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
       the fitting period (the reference period or the whole record), and
       detection on the detrended series. Without detection on it, it's a
       fixed baseline with a narrower spread, as in heatwave3.
+      *Implemented 2026-11-19* as `baseline_detrended()`: one linear
+      trend per series over the reference period, centred on its
+      midpoint and extrapolated beyond it, fitted by least squares with
+      a mean per slot (anomalies from each slot's own mean), and
+      detection on the detrended series (the baseline at each step is
+      the climatology plus the trend). A trend fitted to the daily
+      values, as heatwave3's is, picks up the seasonal cycle (survey
+      finding 50). With `parity = "heatwave3-1.5.0"` it is heatwave3's
+      `detect3(detrend = TRUE)`, reproduced exactly; the heatwaveR modes
+      refuse it. `baseline_fixed()` is the default.
     - **percentile** baselines need the order as well as the estimator:
       pool a window and take the percentile (Hobday), or take the
       percentile per day and smooth it with running means (what
@@ -1013,8 +1023,13 @@ area metrics as sums, and the ice mask.
    mode, a complete series masked where `wa_gaps` and `wa_refgaps` are
    missing gives those cases' stored outputs from every engine, heatwaves
    and cold spells; with the clean rules it's tested on series built by
-   hand. Still to do in this phase: the rule order made explicit, the
-   fixed and detrended baseline types, and trend.sst moving onto spells. Moving
+   hand. *The fixed and detrended baseline types done 2026-11-19* (see
+   "The model"): heatwave3's `detrend` is reproduced exactly on every
+   case; the clean detrended baseline is tested by what it must do (a
+   known trend comes back, an added trend changes only the slope, uneven
+   seasonal coverage doesn't bias it, detection reads the trend). Still
+   to do in this phase: the rule order made explicit, and trend.sst
+   moving onto spells. Moving
    trend.sst to clean rules is a separate, visible step, and its labels
    say which rules it uses.
 2. **Generality gate 1 (ice)**: re-express trend.ice's ice season through
@@ -1147,6 +1162,12 @@ really needed for the Southern Ocean.
   ice category; SST under ice is the eligibility mask's job. The general
   constructor, `spell_def()`, stays internal until generality gate 1
   (ice) has shown what's general.
+- 2026-11-19: **The detrended baseline**: one linear trend per series
+  over the reference period, extrapolated beyond it, fitted to
+  anomalies (by least squares with a mean per slot), with detection on
+  the detrended series; heatwave3's `detrend` is reproduced as a parity
+  mode; the type is given as `baseline_fixed()` or
+  `baseline_detrended()`.
 - 2026-11-19: **The eligibility mask**: ineligible reference days drop
   out of the baseline and count against coverage; with a parity mode an
   ineligible step is the engine on the series masked to `NA`; spell

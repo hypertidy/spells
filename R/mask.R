@@ -86,6 +86,13 @@ prepare_steps <- function(x, time, baseline, eligible = NULL) {
   s <- slot_366(time)
   seas <- baseline$seas[s, , drop = FALSE]
   thresh <- baseline$thresh[s, , drop = FALSE]
+  ## a detrended baseline: the climatology plus the trend at each step
+  tr <- baseline$trend
+  if (!is.null(tr) && tr$applied) {
+    shift <- outer(as.numeric(time) - as.numeric(tr$centre), tr$slope)
+    seas <- seas + shift
+    thresh <- thresh + shift
+  }
   missing <- is.na(x) & !ineligible           # data gaps only
   filled <- matrix(FALSE, nrow(x), ncol(x))
   switch(rules$missing,

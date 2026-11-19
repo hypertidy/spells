@@ -1,5 +1,15 @@
 # spells 0.0.0.9000
 
+* Baseline types: `baseline_fixed()` (the default) and
+  `baseline_detrended()`, given to a preset's `baseline`. The detrended
+  baseline removes one linear trend per series, fitted over the
+  reference period to the anomalies (least squares with a mean per
+  slot) and extrapolated beyond it; detection reads the detrended
+  series. With `parity = "heatwave3-1.5.0"` it reproduces heatwave3's
+  `detect3(detrend = TRUE)`, which fits the climatology only and detects
+  on the raw series; heatwave3's fit to the daily values picks up the
+  seasonal cycle. `spell_baseline()` returns the `trend`.
+
 * The eligibility mask: `eligible =` on `spell_baseline()` and
   `spell_mask()`, a logical matrix like `x` or one value per series, for
   steps where the series means nothing (SST under ice). Ineligible

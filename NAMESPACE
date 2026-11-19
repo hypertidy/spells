@@ -2,6 +2,8 @@
 
 S3method(print,spell_baseline)
 S3method(print,spell_def)
+export(baseline_detrended)
+export(baseline_fixed)
 export(categories)
 export(hobday2016)
 export(hobday2018)

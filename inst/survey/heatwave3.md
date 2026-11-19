@@ -264,6 +264,17 @@ isn't the Jacox et al. 2020 approach of detecting on detrended anomalies.
 *(confirmed by running)* So heatwave3 can't be the oracle for the Smith et al.
 2025 detrended baseline type.
 
+The fit is a least-squares line through the daily values over the
+climatology period (`src/climatology.cpp`), so it picks up the seasonal
+cycle: a cycle isn't uncorrelated with time even over whole years. On
+`sst_WA`, `sst_Med` and `sst_NW_Atl` (1982–2011) the slopes are off by
+-0.038, +0.070 and +0.097 °C per decade, the slope of the trend-free
+climatology alone *(checked by running, 2026-11-19)*. spells reproduces
+`detect3(detrend = TRUE)` exactly as a parity mode
+(`baseline_detrended()` with `parity = "heatwave3-1.5.0"`, on every
+test case); its own detrended baseline fits with a mean per slot, and
+detects on the detrended series.
+
 ## Left to spells
 
 This confirms the brief's "just use heatwave3" row and adds detail. The

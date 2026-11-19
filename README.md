@@ -24,7 +24,9 @@ ev <- spell_events(x, time, b, m)  # one row per spell: dates, duration, intensi
 
 The presets are `hobday2016()` (marine heatwaves, detection only),
 `hobday2018()` (with categories I to IV) and `schlegel2021()` (marine
-cold spells, below the 10th percentile, with negative intensities).
+cold spells, below the 10th percentile, with negative intensities). Each
+takes a baseline type, `baseline_fixed()` (the default) or
+`baseline_detrended()`.
 
 ## Parity
 

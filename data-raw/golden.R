@@ -172,12 +172,15 @@ write_nc <- function(path, dates, x) {
 ## detect3() fits and detects in one call, with its event categories. For a detection window cut
 ## from a longer series (wa_lead), detect_event3() reads the stored
 ## climatology and only the window's dates (time_range).
-run_heatwave3 <- function(cs, cold = FALSE) {
+## detrend: detect3(detrend = TRUE), a linear trend removed for the
+## climatology only (detection reads the raw SST)
+run_heatwave3 <- function(cs, cold = FALSE, detrend = FALSE) {
   one <- function(dates, temp, reference, detect_from) {
     stem <- tempfile(tmpdir = work)
     path <- write_nc(paste0(stem, "_in.nc"), dates, temp)
     detect3(path, name = stem, climatologyPeriod = format(reference), category = TRUE,
-            pctile = if (cold) 10 else 90, coldSpells = cold, daily = "also", quiet = TRUE)
+            pctile = if (cold) 10 else 90, coldSpells = cold, detrend = detrend,
+            daily = "also", quiet = TRUE)
     if (!is.null(detect_from)) {
       stem2 <- paste0(stem, "_window")
       detect_event3(path, name = stem2, clim_file = paste0(stem, "_clim.nc"),
@@ -228,16 +231,19 @@ clim_at <- function(h) with(h$cases$wa_levels[[1]]$clim, cbind(seas, thresh)[mat
 stopifnot(identical(clim_at(h055), clim_at(h100)))
 h3 <- run_heatwave3(cases)
 c3 <- run_heatwave3(cases, cold = TRUE)
+d3 <- run_heatwave3(cases, detrend = TRUE)
 ts <- run_trend_sst(cases, tsst)
 
 saveRDS(cases, file.path(out, "cases.rds"), compress = "xz")
-## cases: heatwaves (90th percentile); cold: cold spells (10th, coldSpells)
+## cases: heatwaves (90th percentile); cold: cold spells (10th, coldSpells);
+## detrend (heatwave3 only): heatwaves with detect3(detrend = TRUE)
 saveRDS(list(meta = meta("heatwaveR", "0.5.5", "CRAN"), cases = h055$cases, cold = c055$cases),
         file.path(out, "golden-heatwaveR-0.5.5.rds"), compress = "xz")
 saveRDS(list(meta = meta("heatwaveR", "1.0.0", "GitHub robwschlegel/heatwaveR @e0ae30d"),
              cases = h100$cases, cold = c100$cases),
         file.path(out, "golden-heatwaveR-1.0.0.rds"), compress = "xz")
-saveRDS(list(meta = meta("heatwave3", "1.5.0", "GitHub @8aff3e5"), cases = h3, cold = c3),
+saveRDS(list(meta = meta("heatwave3", "1.5.0", "GitHub @8aff3e5"), cases = h3, cold = c3,
+             detrend = d3),
         file.path(out, "golden-heatwave3-1.5.0.rds"), compress = "xz")
 saveRDS(list(meta = meta("trend.sst R/mhw.R", tsst_commit,
                          paste("mdsumner/trend.sst, R/mhw.R as of", tsst_commit)), cases = ts),

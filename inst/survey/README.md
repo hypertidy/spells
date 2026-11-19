@@ -293,6 +293,16 @@ the source or from running the code.
     pixels. So the baseline def needs the order (pool or smooth), the
     percentile estimator and the window's wrap rule as parameters. A
     paper's prose isn't enough to set them: rebuild from the input.
+50. **A linear trend fitted to daily values picks up the seasonal
+    cycle.** Even over whole years, a seasonal cycle isn't uncorrelated
+    with time: for a cycle of amplitude A and phase φ at the period's
+    start, the least-squares slope gains about 12 A sin φ / (ω T²) over
+    a period of length T. heatwave3's `detrend` fits the daily values,
+    so on heatwaveR's `sst_WA`, `sst_Med` and `sst_NW_Atl` (1982–2011)
+    its slopes are off by -0.038, +0.070 and +0.097 °C per decade: the
+    slope of the trend-free climatology alone, to three figures
+    *(checked by running, in spells' tests)*. spells' detrended baseline
+    fits with a mean per slot instead, which can't pick it up.
 
 Finding 41's `maxPadLength` point was checked against xarray 2026.9.0
 (`checks/xarray-maxgap.py`, output in `checks/xarray-maxgap.out`).

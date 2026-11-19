@@ -7,11 +7,21 @@
 \alias{schlegel2021}
 \title{Marine heatwaves and cold spells: the presets}
 \usage{
-hobday2016(reference, parity = NULL)
+hobday2016(reference, parity = NULL, baseline = baseline_fixed())
 
-hobday2018(reference, parity = NULL, category = NULL)
+hobday2018(
+  reference,
+  parity = NULL,
+  category = NULL,
+  baseline = baseline_fixed()
+)
 
-schlegel2021(reference, parity = NULL, category = NULL)
+schlegel2021(
+  reference,
+  parity = NULL,
+  category = NULL,
+  baseline = baseline_fixed()
+)
 }
 \arguments{
 \item{reference}{The reference period: two dates, the first and last
@@ -20,6 +30,9 @@ day. It must be whole years.}
 \item{parity}{\code{NULL} for spells' clean rules, or the engine and
 version whose behaviour to reproduce: \code{"heatwaveR-0.5.5"},
 \code{"heatwaveR-1.0.0"} or \code{"heatwave3-1.5.0"}. See \code{\link[=parity_modes]{parity_modes()}}.}
+
+\item{baseline}{The baseline type: \code{\link[=baseline_fixed]{baseline_fixed()}} (the default)
+or \code{\link[=baseline_detrended]{baseline_detrended()}}.}
 
 \item{category}{How each step in a spell gets its category, from
 \code{\link[=categories]{categories()}}. The default is the clean rule, or the parity mode's
@@ -75,6 +88,7 @@ the 10th percentile).
 ref <- c("1982-01-01", "2011-12-31")
 hobday2016(ref)
 hobday2018(ref, parity = "heatwaveR-0.5.5")
+hobday2018(ref, baseline = baseline_detrended())
 schlegel2021(ref)
 }
 \references{
