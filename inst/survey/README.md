@@ -279,7 +279,8 @@ the source or from running the code.
     (checked against its data) and lfstat join first, then test the
     minimum on the joined span, with gap days counted. At nine Tasman
     pixels in 2015–2016 the two orders differ on 4.5% of event days
-    (88 of 1942) with a 5-day minimum.
+    (88 of 1942) with a 5-day minimum. spells has both orders; its
+    join-first order reproduces MHW-MAD's categories (`test-order.R`).
 49. **"Pool, then the percentile" and "the percentile per day, then a
     running mean" are different baselines.** MHW-MAD's paper describes
     Hobday's pooled ±5-day window. Its data is reproduced instead by:

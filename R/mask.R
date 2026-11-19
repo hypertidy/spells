@@ -6,6 +6,22 @@
 #' the threshold, keeps the runs that pass the def's persistence rules,
 #' and gives each step in a spell its category.
 #'
+#' The rules apply in this order:
+#' 1. the eligibility mask: an ineligible step's value is set aside;
+#' 2. the def's missing-data rule: a short run of missing steps is
+#'    interpolated (clean rules), or a missing step counts as the
+#'    baseline (parity modes);
+#' 3. the baseline and threshold at each step, by slot, plus the trend
+#'    for a detrended baseline;
+#' 4. exceedance: the step is above the threshold (below, for a low
+#'    spell);
+#' 5. persistence, in the def's order: the minimum duration first and
+#'    then gaps of `max_gap` or fewer joined between spells (Hobday et
+#'    al. 2016, and every preset), or gaps joined between runs first and
+#'    then the minimum on the joined span, gap steps counted (MHW-MAD).
+#'    No gap is joined across a step that can't be tested;
+#' 6. categories, per step.
+#'
 #' @param x A numeric vector, or a time x series matrix with the same
 #'   series (columns) the baseline was fitted on.
 #' @param time A `Date` vector of consecutive days, one per row of `x`.
@@ -45,7 +61,7 @@ spell_mask <- function(x, time, baseline, eligible = NULL) {
   for (j in seq_len(ncol(p$x))) {
     ev[, j] <- spell_runs(exceed[, j], def$min_duration, def$max_gap,
                           leading_gap = rules$leading_gap, trailing_gap = rules$trailing_gap,
-                          blocked = p$open[, j])
+                          blocked = p$open[, j], order = def$order)
   }
   out <- list(event = ev)
   if (!is.null(def$category)) out$category <- step_category(p$x, p$seas, p$thresh, ev, def$category)
@@ -146,34 +162,57 @@ interpolate_runs <- function(x, n, blocked = NULL) {
   x
 }
 
-## Minimum first, then join: runs of at least min_duration exceedances
-## are spells; a gap of max_gap or fewer steps between two spells joins
-## them, unless it holds a blocked step (one that can't be tested).
-## leading_gap / trailing_gap: whether a short gap between the series
-## start and the first spell, or the last spell and the series end, is
-## joined too (heatwaveR 0.5.5 joins the trailing one).
-## This is trend.sst's mhw_event_mask().
+## The persistence rules, in the def's order:
+##  minimum_first: runs of at least min_duration exceedances are spells,
+##        then a gap of max_gap or fewer steps between two spells joins
+##        them (Hobday et al. 2016, marineHeatWaves, heatwaveR; trend.sst's
+##        mhw_event_mask())
+##  join_first: a gap of max_gap or fewer steps between two runs of
+##        exceedances (of any length) is joined first, then a joined span
+##        is a spell if it's at least min_duration steps, gap steps
+##        counted (MHW-MAD, checked against its data; lfstat pools first)
+## Either way no gap is joined across a blocked step (one that can't be
+## tested). leading_gap / trailing_gap: whether a short gap between the
+## series start and the first spell (or run), or the last one and the
+## series end, is joined too (heatwaveR 0.5.5 joins the trailing one).
 spell_runs <- function(exceed, min_duration, max_gap, leading_gap = FALSE, trailing_gap = FALSE,
-                       blocked = NULL) {
+                       blocked = NULL, order = c("minimum_first", "join_first")) {
+  order <- match.arg(order)
   n <- length(exceed)
   out <- logical(n)
-  r <- rle(exceed)
-  ends <- cumsum(r$lengths); starts <- ends - r$lengths + 1L
-  keep <- r$values & r$lengths >= min_duration
-  if (!any(keep)) return(out)
-  for (k in which(keep)) out[starts[k]:ends[k]] <- TRUE
-  r2 <- rle(out)
-  e2 <- cumsum(r2$lengths); s2 <- e2 - r2$lengths + 1L
-  on <- which(r2$values)
-  gap <- !r2$values & r2$lengths <= max_gap
-  if (!leading_gap) gap <- gap & e2 > s2[on[1]]
-  if (!trailing_gap) gap <- gap & s2 < e2[on[length(on)]]
-  if (!is.null(blocked) && any(blocked)) {
-    cb <- c(0L, cumsum(blocked))
-    gap <- gap & cb[e2 + 1L] == cb[s2]
+  if (!any(exceed)) return(out)
+  ## the short gaps of on, a run mask, that may be joined
+  joinable <- function(on_mask) {
+    r <- rle(on_mask)
+    e <- cumsum(r$lengths); s <- e - r$lengths + 1L
+    on <- which(r$values)
+    gap <- !r$values & r$lengths <= max_gap
+    if (!leading_gap) gap <- gap & e > s[on[1]]
+    if (!trailing_gap) gap <- gap & s < e[on[length(on)]]
+    if (!is.null(blocked) && any(blocked)) {
+      cb <- c(0L, cumsum(blocked))
+      gap <- gap & cb[e + 1L] == cb[s]
+    }
+    k <- which(gap)
+    if (length(k)) on_mask[unlist(lapply(k, function(i) s[i]:e[i]))] <- TRUE
+    on_mask
   }
-  for (k in which(gap)) out[s2[k]:e2[k]] <- TRUE
-  out
+  ## the runs of on_mask at least min_duration long
+  long_runs <- function(on_mask) {
+    r <- rle(on_mask)
+    e <- cumsum(r$lengths); s <- e - r$lengths + 1L
+    keep <- which(r$values & r$lengths >= min_duration)
+    res <- logical(n)
+    if (length(keep)) res[unlist(lapply(keep, function(i) s[i]:e[i]))] <- TRUE
+    res
+  }
+  if (order == "minimum_first") {
+    out <- long_runs(exceed)
+    if (!any(out)) return(out)
+    joinable(out)
+  } else {
+    long_runs(joinable(exceed))
+  }
 }
 
 ## Category per step, on spell steps only (0 elsewhere). ">=": the

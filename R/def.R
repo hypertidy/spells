@@ -102,8 +102,10 @@ rule_mode <- function(parity) {
 ## gate 1 (the ice season) shows what's general.
 spell_def <- function(name, reference, rules, parity = NULL, category = NULL,
                       baseline = baseline_fixed(), direction = c("high", "low"), p = 0.9,
-                      window = 11L, smooth = 31L, min_duration = 5L, max_gap = 2L) {
+                      window = 11L, smooth = 31L, min_duration = 5L, max_gap = 2L,
+                      order = c("minimum_first", "join_first")) {
   direction <- match.arg(direction)
+  order <- match.arg(order)
   if (!is.null(category) && !inherits(category, "spell_categories")) {
     stop("`category` must come from categories()", call. = FALSE)
   }
@@ -127,7 +129,7 @@ spell_def <- function(name, reference, rules, parity = NULL, category = NULL,
     direction = direction,
     min_duration = as.integer(min_duration),
     max_gap = as.integer(max_gap),
-    order = "minimum_first",
+    order = order,
     category = category,
     parity = parity,
     rules = rules

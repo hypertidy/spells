@@ -183,6 +183,16 @@
   abstract), 1982–2025 (§2) and 1982–2024 (§3.1 and the README).
 - Gap bridging is in the README but not in the paper.
 
+*Since 2026-11-19, spells' join-first rule order reproduces MHW-MAD's
+per-day categories at the nine pixels, from the stored subset in
+`tests/testthat/fixtures/mhw-mad.rds` (`data-raw/mhw-mad.R`,
+`tests/testthat/test-order.R`): the 90th percentile with 5-, 10- and
+30-day minimums and the 95th with 5. Days in runs cut by the
+2015–2016 window aren't scored, nor the run around one tie: on
+2016-09-02 at 150 E 43 S the stored 95th-percentile anomaly is 3.3e-5 K
+above the stored threshold, about one single-precision step at 290 K,
+and MHW-MAD has the day below it.*
+
 ## What this means for spells
 
 1. **"Detrended" is three different things so far:**

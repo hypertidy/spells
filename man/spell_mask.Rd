@@ -40,6 +40,25 @@ Applies a fitted baseline to a series by slot, finds the steps beyond
 the threshold, keeps the runs that pass the def's persistence rules,
 and gives each step in a spell its category.
 }
+\details{
+The rules apply in this order:
+\enumerate{
+\item the eligibility mask: an ineligible step's value is set aside;
+\item the def's missing-data rule: a short run of missing steps is
+interpolated (clean rules), or a missing step counts as the
+baseline (parity modes);
+\item the baseline and threshold at each step, by slot, plus the trend
+for a detrended baseline;
+\item exceedance: the step is above the threshold (below, for a low
+spell);
+\item persistence, in the def's order: the minimum duration first and
+then gaps of \code{max_gap} or fewer joined between spells (Hobday et
+al. 2016, and every preset), or gaps joined between runs first and
+then the minimum on the joined span, gap steps counted (MHW-MAD).
+No gap is joined across a step that can't be tested;
+\item categories, per step.
+}
+}
 \examples{
 x <- 20 + 2 * sin(2 * pi * seq_len(3653) / 365.25) + rnorm(3653, sd = 0.5)
 time <- seq(as.Date("1990-01-01"), by = "day", length.out = 3653)

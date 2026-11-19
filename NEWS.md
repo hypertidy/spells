@@ -1,5 +1,13 @@
 # spells 0.0.0.9000
 
+* The rule order is explicit: a def's `order` is `"minimum_first"` (the
+  minimum duration, then gaps joined between spells; every preset) or
+  `"join_first"` (gaps joined between runs, then the minimum on the
+  joined span with gap steps counted, as MHW-MAD and lfstat do). Join
+  first reproduces MHW-MAD's per-day categories on a stored subset
+  (CC-BY 4.0, DMI; `data-raw/mhw-mad.R`). `spell_mask()`'s documentation
+  gives the order every rule applies in.
+
 * Baseline types: `baseline_fixed()` (the default) and
   `baseline_detrended()`, given to a preset's `baseline`. The detrended
   baseline removes one linear trend per series, fitted over the

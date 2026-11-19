@@ -294,7 +294,10 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
     drops minor events after, the reverse of Hobday's order. So does
     MHW-MAD (checked against its data), counting the gap days toward its
     minimum. The two orders differ on about 4.5% of event days at Tasman
-    pixels, so the order is a def parameter. A closing
+    pixels, so the order is a def parameter. *Implemented 2026-11-19*:
+    `order = "minimum_first"` (every preset) or `"join_first"` (gap steps
+    counted toward the minimum), in the internal `spell_def()`; join
+    first reproduces MHW-MAD's stored categories. A closing
     estimated from the data (intervals declustering, POT's `fitexi()`)
     is fitted once and stored in the def, like a baseline. Gaps count
     steps; for irregular series the def could give a duration instead
@@ -1027,9 +1030,12 @@ area metrics as sums, and the ice mask.
    "The model"): heatwave3's `detrend` is reproduced exactly on every
    case; the clean detrended baseline is tested by what it must do (a
    known trend comes back, an added trend changes only the slope, uneven
-   seasonal coverage doesn't bias it, detection reads the trend). Still
-   to do in this phase: the rule order made explicit, and trend.sst
-   moving onto spells. Moving
+   seasonal coverage doesn't bias it, detection reads the trend). *The
+   rule order made explicit 2026-11-19*: minimum first or join first, a
+   def parameter, with join first tested against MHW-MAD's own
+   categories (a CC-BY 4.0 subset, nine Tasman pixels, 2015-2016) and the
+   order of every rule in `spell_mask()`'s documentation. Still to do in
+   this phase: trend.sst moving onto spells. Moving
    trend.sst to clean rules is a separate, visible step, and its labels
    say which rules it uses.
 2. **Generality gate 1 (ice)**: re-express trend.ice's ice season through
@@ -1162,6 +1168,10 @@ really needed for the Southern Ocean.
   ice category; SST under ice is the eligibility mask's job. The general
   constructor, `spell_def()`, stays internal until generality gate 1
   (ice) has shown what's general.
+- 2026-11-19: **The rule order**: `"minimum_first"` or `"join_first"`
+  is a parameter of the def (internal `spell_def()`), printed with it;
+  the presets fix minimum first, as their papers do. A CC-BY 4.0 subset
+  of MHW-MAD is stored, with attribution, as join first's oracle.
 - 2026-11-19: **The detrended baseline**: one linear trend per series
   over the reference period, extrapolated beyond it, fitted to
   anomalies (by least squares with a mean per slot), with detection on

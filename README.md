@@ -45,3 +45,9 @@ Every mode is tested for heatwaves and for cold spells. The test series
 are heatwaveR's `sst_WA`, `sst_Med` and `sst_NW_Atl` (NOAA OISST v2.1),
 with gaps, shortened ends and stretches set on the category levels to
 separate the rules.
+
+The join-first rule order is tested against a small subset of MHW-MAD
+(Hayward et al. 2026, Earth Syst. Sci. Data 18, 7181-7197; data
+doi:10.5281/zenodo.21835325, Danish Meteorological Institute, CC-BY
+4.0): nine Tasman Sea pixels for 2015-2016, in
+`tests/testthat/fixtures/mhw-mad.rds`, made by `data-raw/mhw-mad.R`.
