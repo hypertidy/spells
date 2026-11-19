@@ -31,3 +31,26 @@ check_series <- function(x, time) {
   }
   x
 }
+
+## The eligibility mask, as a logical time x series matrix the shape of
+## x: NULL (every step eligible), a matrix the shape of x, a vector of
+## one value per series (a whole series in or out), or for a single
+## series a vector of one value per step.
+check_eligible <- function(eligible, x) {
+  if (is.null(eligible)) return(matrix(TRUE, nrow(x), ncol(x)))
+  if (!is.logical(eligible) || anyNA(eligible)) {
+    stop("`eligible` must be TRUE or FALSE throughout, with no NA", call. = FALSE)
+  }
+  if (is.null(dim(eligible))) {
+    if (length(eligible) == ncol(x) && (ncol(x) > 1L || nrow(x) == 1L)) {
+      return(matrix(eligible, nrow(x), ncol(x), byrow = TRUE))
+    }
+    if (ncol(x) == 1L && length(eligible) == nrow(x)) return(matrix(eligible, ncol = 1L))
+    stop("`eligible` must be a time x series matrix like `x`, or one value per series",
+         call. = FALSE)
+  }
+  if (!identical(dim(eligible), dim(x))) {
+    stop("`eligible` must be the same shape as `x`", call. = FALSE)
+  }
+  unname(eligible)
+}

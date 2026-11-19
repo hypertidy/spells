@@ -11,7 +11,8 @@ spell_events(x, time, baseline, mask)
 
 \item{baseline}{The \code{spell_baseline} given to \code{\link[=spell_mask]{spell_mask()}}.}
 
-\item{mask}{The result of \code{\link[=spell_mask]{spell_mask()}}.}
+\item{mask}{The result of \code{\link[=spell_mask]{spell_mask()}}. Its step states carry the
+eligibility mask, if one was given.}
 }
 \value{
 A data frame, one row per spell, ordered by series and then
@@ -22,10 +23,14 @@ time:
 \code{index_end}: rows of \code{x};
 \item \code{duration}: steps in the spell, joined gaps included; \code{n_beyond}:
 those beyond the threshold; \code{n_missing}: those missing in \code{x}
-(interpolated, or counted as the baseline);
+(interpolated, or counted as the baseline); \code{n_ineligible}: those
+ineligible (always 0 with the clean rules, which cut a spell
+there; with a parity mode they count as missing);
 \item \code{cut_start}, \code{cut_end}: the spell touches the first or last step,
-or steps that can't be tested, so it may have begun earlier or go
-on (at the series' end, a provisional tail);
+or a step that can't be tested, so it may have begun earlier or go
+on (at the series' end, a provisional tail); \code{cut_start_by},
+\code{cut_end_by}: why, \code{"series"} (its end), \code{"missing"},
+\code{"ineligible"} or \code{"no_baseline"}, or \code{NA} if not cut;
 \item \code{intensity_max}, \code{intensity_mean}, \code{intensity_sd},
 \code{intensity_cumulative}: of the anomaly (the series minus the
 baseline); then the same with suffix \verb{_thresh} (the series minus

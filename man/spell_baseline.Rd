@@ -4,7 +4,7 @@
 \alias{spell_baseline}
 \title{Fit a spell baseline and threshold}
 \usage{
-spell_baseline(x, time, def)
+spell_baseline(x, time, def, eligible = NULL)
 }
 \arguments{
 \item{x}{A numeric vector, or a time x series matrix (one column per
@@ -14,6 +14,14 @@ series, all on the same dates).}
 It must cover the def's reference period.}
 
 \item{def}{A \code{spell_def}, such as from \code{\link[=hobday2016]{hobday2016()}}.}
+
+\item{eligible}{Where the series means something (\code{TRUE}), such as
+SST not under ice: \code{NULL} for everywhere, a logical matrix the shape
+of \code{x}, or one value per series. An ineligible day drops out of the
+window, as a missing one does, and counts against the slot's
+coverage, so a slot mostly ineligible in the reference years gets
+no baseline. With a parity mode it is the engine's answer on the
+series masked to \code{NA} there.}
 }
 \value{
 A \code{spell_baseline}: the def, and \code{seas} (the baseline) and

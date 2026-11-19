@@ -11,13 +11,23 @@
 #' @param time A `Date` vector of consecutive days, one per row of `x`.
 #'   It needn't be the stretch the baseline was fitted on.
 #' @param baseline A `spell_baseline` from [spell_baseline()].
+#' @param eligible Where the series means something (`TRUE`), such as
+#'   SST not under ice: `NULL` for everywhere, a logical matrix the shape
+#'   of `x`, or one value per series. An ineligible step isn't missing
+#'   data: its value is ignored, it's never interpolated across, no gap
+#'   is joined across it, and the spells beside it are cut there. With a
+#'   parity mode it is the engine's answer on the series masked to `NA`
+#'   there.
 #' @return A list of time x series matrices: `event` (logical, `TRUE` on
 #'   every step in a spell, joined gaps included), `category` (integer: 0
 #'   outside spells and for steps with no category, 1 to 4 for Hobday
 #'   2018's I to IV; only if the def has categories) and `anom` (the
 #'   series minus the baseline, after the def's missing-data rule: `NA`
-#'   where a step can't be tested). A low spell (a cold spell) is below
-#'   the threshold, and its categories count down from it.
+#'   where a step can't be tested), and `state` (integer, each step's
+#'   state: 0 observed, 1 filled (interpolated, or counted as the
+#'   baseline), 2 missing, 3 ineligible, 4 no baseline; the names are its
+#'   `levels` attribute). A low spell (a cold spell) is below the
+#'   threshold, and its categories count down from it.
 #' @export
 #' @examples
 #' x <- 20 + 2 * sin(2 * pi * seq_len(3653) / 365.25) + rnorm(3653, sd = 0.5)
@@ -25,8 +35,8 @@
 #' def <- hobday2016(c("1990-01-01", "1999-12-31"))
 #' m <- spell_mask(x, time, spell_baseline(x, time, def))
 #' sum(m$event)
-spell_mask <- function(x, time, baseline) {
-  p <- prepare_steps(x, time, baseline)
+spell_mask <- function(x, time, baseline, eligible = NULL) {
+  p <- prepare_steps(x, time, baseline, eligible)
   def <- baseline$def
   rules <- def$rules
   exceed <- p$x > p$thresh
@@ -40,8 +50,13 @@ spell_mask <- function(x, time, baseline) {
   out <- list(event = ev)
   if (!is.null(def$category)) out$category <- step_category(p$x, p$seas, p$thresh, ev, def$category)
   out$anom <- p$sign * (p$x - p$seas)
+  out$state <- p$state
   out
 }
+
+## Each step's state, by precedence: ineligible, then still missing, then
+## in a slot without a baseline, then filled, else observed.
+step_states <- c("observed", "filled", "missing", "ineligible", "no_baseline")
 
 ## The series, baseline and threshold per step, after the def's
 ## missing-data rule:
@@ -51,53 +66,74 @@ spell_mask <- function(x, time, baseline) {
 ##               observed step on both sides is interpolated linearly
 ##               (spells' clean rule); the rest stay missing
 ## Also: which steps were missing, which were interpolated, and which
-## are open (can't be tested: still missing, or in a slot without a
-## baseline). No gap is joined across an open step.
+## are open (can't be tested: still missing, ineligible, or in a slot
+## without a baseline). No gap is joined across an open step.
+## An ineligible step is set to NA first: with the clean rules it's
+## never interpolated, nor interpolated across; with a parity mode it is
+## then just missing, as the engine would see the masked series.
 ## A low spell's series, baseline and threshold are negated (sign -1),
 ## so everything after looks for steps above the threshold, as
 ## heatwaveR and heatwave3 detect cold spells.
-prepare_steps <- function(x, time, baseline) {
+prepare_steps <- function(x, time, baseline, eligible = NULL) {
   if (!inherits(baseline, "spell_baseline")) stop("`baseline` must be a spell_baseline")
   x <- check_series(x, time)
   if (ncol(x) != ncol(baseline$seas)) {
     stop("`x` has ", ncol(x), " series but the baseline was fitted on ", ncol(baseline$seas))
   }
+  ineligible <- !check_eligible(eligible, x)
+  x[ineligible] <- NA_real_
   rules <- baseline$def$rules
   s <- slot_366(time)
   seas <- baseline$seas[s, , drop = FALSE]
   thresh <- baseline$thresh[s, , drop = FALSE]
-  missing <- is.na(x)
-  interpolated <- matrix(FALSE, nrow(x), ncol(x))
+  missing <- is.na(x) & !ineligible           # data gaps only
+  filled <- matrix(FALSE, nrow(x), ncol(x))
   switch(rules$missing,
     baseline = {
-      x[missing] <- seas[missing]
+      na <- is.na(x)
+      x[na] <- seas[na]
+      filled <- na & !is.na(x)
     },
     interpolate = {
-      x <- interpolate_runs(x, rules$max_interp)
-      interpolated <- missing & !is.na(x)
+      x <- interpolate_runs(x, rules$max_interp, blocked = ineligible)
+      filled <- missing & !is.na(x)
     },
     stop("unknown missing rule \"", rules$missing, "\""))
-  open <- is.na(x) | is.na(seas) | is.na(thresh)
+  nobase <- is.na(seas) | is.na(thresh)
+  open <- is.na(x) | nobase
+  state <- matrix(0L, nrow(x), ncol(x))
+  state[filled] <- 1L
+  state[nobase] <- 4L
+  state[is.na(x) & missing] <- 2L
+  state[ineligible] <- 3L
+  attr(state, "levels") <- step_states
   sign <- switch(baseline$def$direction, high = 1, low = -1,
                  stop("unknown direction \"", baseline$def$direction, "\""))
   list(x = sign * x, seas = sign * seas, thresh = sign * thresh, missing = missing,
-       interpolated = interpolated, open = open, sign = sign)
+       ineligible = ineligible, interpolated = filled & rules$missing == "interpolate",
+       open = open, state = state, sign = sign)
 }
 
 ## Linear interpolation of each run of n or fewer missing steps that has
-## an observed step on both sides, per column.
-interpolate_runs <- function(x, n) {
+## an observed, unblocked step on both sides, per column. A blocked
+## (ineligible) step is never filled, and no run is interpolated across
+## or up to one.
+interpolate_runs <- function(x, n, blocked = NULL) {
+  if (is.null(blocked)) blocked <- matrix(FALSE, nrow(x), ncol(x))
   for (j in seq_len(ncol(x))) {
     v <- x[, j]
     na <- is.na(v)
-    if (!any(na) || all(na)) next
-    r <- rle(na)
+    gap <- na & !blocked[, j]
+    obs <- !na & !blocked[, j]
+    if (!any(gap) || !any(obs)) next
+    r <- rle(gap)
     e <- cumsum(r$lengths)
     s <- e - r$lengths + 1L
     k <- which(r$values & r$lengths <= n & s > 1L & e < length(v))
+    k <- k[obs[s[k] - 1L] & obs[e[k] + 1L]]
     if (!length(k)) next
     at <- unlist(lapply(k, function(i) s[i]:e[i]))
-    v[at] <- stats::approx(which(!na), v[!na], xout = at)$y
+    v[at] <- stats::approx(which(obs), v[obs], xout = at)$y
     x[, j] <- v
   }
   x

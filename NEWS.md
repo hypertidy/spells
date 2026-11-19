@@ -1,5 +1,16 @@
 # spells 0.0.0.9000
 
+* The eligibility mask: `eligible =` on `spell_baseline()` and
+  `spell_mask()`, a logical matrix like `x` or one value per series, for
+  steps where the series means nothing (SST under ice). Ineligible
+  reference days drop out of the baseline and count against coverage.
+  With the clean rules an ineligible step is never interpolated nor
+  interpolated across, and cuts the spells beside it; with a parity mode
+  it's the engine's answer on the series masked to `NA`. `spell_mask()`
+  returns each step's `state`, and `spell_events()` gains `n_ineligible`
+  and the reason a spell is cut on each side (`cut_start_by`,
+  `cut_end_by`).
+
 * The presets: `hobday2016()` detects marine heatwaves and now has no
   categories; `hobday2018()` adds Hobday et al. (2018)'s categories;
   `schlegel2021()` detects marine cold spells, below the 10th

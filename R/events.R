@@ -29,7 +29,8 @@
 #'
 #' @param x,time The series and dates given to [spell_mask()].
 #' @param baseline The `spell_baseline` given to [spell_mask()].
-#' @param mask The result of [spell_mask()].
+#' @param mask The result of [spell_mask()]. Its step states carry the
+#'   eligibility mask, if one was given.
 #' @return A data frame, one row per spell, ordered by series and then
 #'   time:
 #'   * `series`, `spell`: the column of `x`, and the spell's number in it;
@@ -37,10 +38,14 @@
 #'     `index_end`: rows of `x`;
 #'   * `duration`: steps in the spell, joined gaps included; `n_beyond`:
 #'     those beyond the threshold; `n_missing`: those missing in `x`
-#'     (interpolated, or counted as the baseline);
+#'     (interpolated, or counted as the baseline); `n_ineligible`: those
+#'     ineligible (always 0 with the clean rules, which cut a spell
+#'     there; with a parity mode they count as missing);
 #'   * `cut_start`, `cut_end`: the spell touches the first or last step,
-#'     or steps that can't be tested, so it may have begun earlier or go
-#'     on (at the series' end, a provisional tail);
+#'     or a step that can't be tested, so it may have begun earlier or go
+#'     on (at the series' end, a provisional tail); `cut_start_by`,
+#'     `cut_end_by`: why, `"series"` (its end), `"missing"`,
+#'     `"ineligible"` or `"no_baseline"`, or `NA` if not cut;
 #'   * `intensity_max`, `intensity_mean`, `intensity_sd`,
 #'     `intensity_cumulative`: of the anomaly (the series minus the
 #'     baseline); then the same with suffix `_thresh` (the series minus
@@ -65,7 +70,12 @@
 #' ev <- spell_events(x, time, b, m)
 #' head(ev[c("start", "end", "duration", "intensity_max", "category")])
 spell_events <- function(x, time, baseline, mask) {
-  p <- prepare_steps(x, time, baseline)
+  ## the eligibility mask comes with the mask, in its step states
+  eligible <- if (is.null(mask$state)) NULL else unname(mask$state != 3L)
+  if (!is.null(eligible) && !identical(dim(eligible), dim(as.matrix(x)))) {
+    stop("`mask` must be spell_mask()'s result for this `x`")
+  }
+  p <- prepare_steps(x, time, baseline, eligible)
   x <- p$x
   seas <- p$seas
   thresh <- p$thresh
@@ -78,8 +88,9 @@ spell_events <- function(x, time, baseline, mask) {
   rule <- def$category
   miss <- p$missing
   ## a rate's step outside the spell: "observed" gives no rate across a
-  ## missing step that wasn't interpolated, or one that can't be tested
-  no_rate <- p$open | (miss & !p$interpolated)
+  ## missing or ineligible step that wasn't interpolated, or one that
+  ## can't be tested
+  no_rate <- p$open | ((miss | p$ineligible) & !p$interpolated)
   beyond <- x > thresh
   beyond[p$open] <- FALSE
   ecat <- if (is.null(rule)) {
@@ -108,15 +119,15 @@ spell_events <- function(x, time, baseline, mask) {
       (imax - 0.5 * (an[length(t)] + x[b + 1L, j] - seas[b + 1L, j])) / (length(t) - pk + 0.5)
     } else NA_real_
     cnt <- tabulate(ecat[t, j], nbins = 4L)
-    c(a + pk - 1L, sum(beyond[t, j]), sum(miss[t, j]),
+    c(a + pk - 1L, sum(beyond[t, j]), sum(miss[t, j]), sum(p$ineligible[t, j]),
       imax, mean(an), stats::sd(an), sum(an),
       max(at), mean(at), stats::sd(at), sum(at),
       max(ab), mean(ab), stats::sd(ab), sum(ab),
       onset, decline, cnt)
   }
-  vals <- matrix(NA_real_, nrow(sp), 21L)
+  vals <- matrix(NA_real_, nrow(sp), 22L)
   for (i in seq_len(nrow(sp))) vals[i, ] <- one(sp$series[i], sp$index_start[i], sp$index_end[i])
-  colnames(vals) <- c("index_peak", "n_beyond", "n_missing",
+  colnames(vals) <- c("index_peak", "n_beyond", "n_missing", "n_ineligible",
                       paste0("intensity_", c("max", "mean", "sd", "cumulative")),
                       paste0("intensity_", c("max", "mean", "sd", "cumulative"), "_thresh"),
                       paste0("intensity_", c("max", "mean", "sd", "cumulative"), "_abs"),
@@ -153,13 +164,22 @@ spell_events <- function(x, time, baseline, mask) {
                     duration = duration,
                     n_beyond = as.integer(vals[, "n_beyond"]),
                     n_missing = as.integer(vals[, "n_missing"]),
-                    cut_start = sp$index_start == 1L, cut_end = sp$index_end == n)
-  ## cut by steps that can't be tested
-  j <- sp$series
-  at <- sp$index_start > 1L
-  out$cut_start[at] <- p$open[cbind(sp$index_start[at] - 1L, j[at])]
-  at <- sp$index_end < n
-  out$cut_end[at] <- p$open[cbind(sp$index_end[at] + 1L, j[at])]
+                    n_ineligible = as.integer(vals[, "n_ineligible"]))
+  ## cut by the series' end, or by a step outside the spell that can't
+  ## be tested, and why
+  cut_by <- function(at_edge, nb) {
+    by <- rep(NA_character_, length(nb))
+    inside <- !at_edge
+    o <- p$open[cbind(nb[inside], sp$series[inside])]
+    by[inside][o] <- step_states[p$state[cbind(nb[inside], sp$series[inside])][o] + 1L]
+    by[at_edge] <- "series"
+    by
+  }
+  out$cut_start_by <- cut_by(sp$index_start == 1L, sp$index_start - 1L)
+  out$cut_end_by <- cut_by(sp$index_end == n, sp$index_end + 1L)
+  out$cut_start <- !is.na(out$cut_start_by)
+  out$cut_end <- !is.na(out$cut_end_by)
+  out <- out[c(names(out)[1:12], "cut_start", "cut_end", "cut_start_by", "cut_end_by")]
   out <- cbind(out, as.data.frame(vals[, metric, drop = FALSE]))
   if (!is.null(rule)) {
     out$category <- as.integer(category)

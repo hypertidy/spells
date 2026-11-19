@@ -4,7 +4,7 @@
 \alias{spell_mask}
 \title{Spell mask and categories per step}
 \usage{
-spell_mask(x, time, baseline)
+spell_mask(x, time, baseline, eligible = NULL)
 }
 \arguments{
 \item{x}{A numeric vector, or a time x series matrix with the same
@@ -14,6 +14,14 @@ series (columns) the baseline was fitted on.}
 It needn't be the stretch the baseline was fitted on.}
 
 \item{baseline}{A \code{spell_baseline} from \code{\link[=spell_baseline]{spell_baseline()}}.}
+
+\item{eligible}{Where the series means something (\code{TRUE}), such as
+SST not under ice: \code{NULL} for everywhere, a logical matrix the shape
+of \code{x}, or one value per series. An ineligible step isn't missing
+data: its value is ignored, it's never interpolated across, no gap
+is joined across it, and the spells beside it are cut there. With a
+parity mode it is the engine's answer on the series masked to \code{NA}
+there.}
 }
 \value{
 A list of time x series matrices: \code{event} (logical, \code{TRUE} on
@@ -21,8 +29,11 @@ every step in a spell, joined gaps included), \code{category} (integer: 0
 outside spells and for steps with no category, 1 to 4 for Hobday
 2018's I to IV; only if the def has categories) and \code{anom} (the
 series minus the baseline, after the def's missing-data rule: \code{NA}
-where a step can't be tested). A low spell (a cold spell) is below
-the threshold, and its categories count down from it.
+where a step can't be tested), and \code{state} (integer, each step's
+state: 0 observed, 1 filled (interpolated, or counted as the
+baseline), 2 missing, 3 ineligible, 4 no baseline; the names are its
+\code{levels} attribute). A low spell (a cold spell) is below the
+threshold, and its categories count down from it.
 }
 \description{
 Applies a fitted baseline to a series by slot, finds the steps beyond

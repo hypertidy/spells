@@ -346,6 +346,20 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
   A whole series can be ineligible (e.g. mean ice concentration above
   0.2). The mask is an input from another source: MUR's
   `sea_ice_fraction`, or trend.ice.
+  - *Implemented 2026-11-19* as `eligible =` on `spell_baseline()` and
+    `spell_mask()`: a logical matrix like `x`, or one value per series.
+    In the reference period an ineligible day drops out of the window
+    and counts against the slot's coverage, so a slot mostly under ice
+    gets no baseline (and a rare ice-free winter there can't be tested).
+    In detection its value is ignored; with the clean rules it isn't
+    interpolated nor interpolated across, no gap is joined across it,
+    and the spells beside it are cut (`cut_start_by` / `cut_end_by` =
+    `"ineligible"`). With a parity mode it is the engine's answer on the
+    series masked to `NA`, so it stays testable against the engines.
+    `spell_mask()` returns each step's state (observed, filled, missing,
+    ineligible, no baseline), so summaries can count ineligible steps
+    apart from data gaps. Turning ice concentration into the mask (0.15
+    per step, 0.2 mean) is the caller's job.
 - **metrics** per spell: start, end, peak, duration, intensity (max,
   mean, cumulative, variance), onset and decline rates, the highest
   category reached, and the steps interpolated.
@@ -994,8 +1008,12 @@ area metrics as sums, and the ice mask.
    reproduces their cold spells on all nine cases (stored outputs from
    `pctile = 10`, `coldSpells = TRUE`). Schlegel et al. 2021 itself
    couldn't be read (the publisher refuses automated fetches); its ice
-   category is known only from heatwaveR's documentation. Still to do in
-   this phase: the rule order made explicit, the eligibility mask, the
+   category is known only from heatwaveR's documentation. *The
+   eligibility mask done 2026-11-19* (see "The model"): with a parity
+   mode, a complete series masked where `wa_gaps` and `wa_refgaps` are
+   missing gives those cases' stored outputs from every engine, heatwaves
+   and cold spells; with the clean rules it's tested on series built by
+   hand. Still to do in this phase: the rule order made explicit, the
    fixed and detrended baseline types, and trend.sst moving onto spells. Moving
    trend.sst to clean rules is a separate, visible step, and its labels
    say which rules it uses.
@@ -1129,6 +1147,10 @@ really needed for the Southern Ocean.
   ice category; SST under ice is the eligibility mask's job. The general
   constructor, `spell_def()`, stays internal until generality gate 1
   (ice) has shown what's general.
+- 2026-11-19: **The eligibility mask**: ineligible reference days drop
+  out of the baseline and count against coverage; with a parity mode an
+  ineligible step is the engine on the series masked to `NA`; spell
+  events give the reason a spell is cut on each side.
 - 2026-11-18: **heatwave3 is a test oracle only.** spells doesn't depend
   on it, not even in Suggests. Its outputs are generated once by a
   script and stored with the tests, and the Hobday presets run on spells'

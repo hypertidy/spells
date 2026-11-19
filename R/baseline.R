@@ -13,6 +13,13 @@
 #' @param time A `Date` vector of consecutive days, one per row of `x`.
 #'   It must cover the def's reference period.
 #' @param def A `spell_def`, such as from [hobday2016()].
+#' @param eligible Where the series means something (`TRUE`), such as
+#'   SST not under ice: `NULL` for everywhere, a logical matrix the shape
+#'   of `x`, or one value per series. An ineligible day drops out of the
+#'   window, as a missing one does, and counts against the slot's
+#'   coverage, so a slot mostly ineligible in the reference years gets
+#'   no baseline. With a parity mode it is the engine's answer on the
+#'   series masked to `NA` there.
 #' @return A `spell_baseline`: the def, and `seas` (the baseline) and
 #'   `thresh` (the threshold), each a 366 x series matrix by slot.
 #' @export
@@ -22,16 +29,19 @@
 #' def <- hobday2016(c("1990-01-01", "1999-12-31"))
 #' b <- spell_baseline(x, time, def)
 #' str(b$thresh)
-spell_baseline <- function(x, time, def) {
+spell_baseline <- function(x, time, def, eligible = NULL) {
   if (!inherits(def, "spell_def")) stop("`def` must be a spell_def")
   x <- check_series(x, time)
+  el <- check_eligible(eligible, x)
+  x[!el] <- NA_real_
   ref <- def$reference
   if (min(time) > ref[1] || max(time) < ref[2]) {
     stop("`time` doesn't cover the reference period, ", format(ref[1]), " to ", format(ref[2]))
   }
   fit <- clim_window_pooled(x, time, def)
-  structure(list(def = def, seas = fit$seas, thresh = fit$thresh,
-                 series = colnames(x)), class = "spell_baseline")
+  inb <- time >= ref[1] & time <= ref[2]
+  structure(list(def = def, seas = fit$seas, thresh = fit$thresh, series = colnames(x),
+                 ineligible = sum(!el[inb, ])), class = "spell_baseline")
 }
 
 ## Climatology: the window pooled over the reference years, its mean and
@@ -200,5 +210,6 @@ print.spell_baseline <- function(x, ...) {
   cat("<spell_baseline>", ncol(x$seas), "series, 366 slots;", x$def$name,
       if (!is.null(x$def$parity)) paste0("(parity ", x$def$parity, ")"),
       "reference", format(x$def$reference[1]), "to", format(x$def$reference[2]), "\n")
+  if (isTRUE(x$ineligible > 0)) cat("  ", x$ineligible, "ineligible steps in the reference period\n")
   invisible(x)
 }
