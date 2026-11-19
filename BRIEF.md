@@ -1042,7 +1042,11 @@ area metrics as sums, and the ice mask.
    definition. On four real 50 x 50-pixel chunks of its MUR stores
    (Tasman, North-west, WA; 2002-2026, 89 million pixel-days) the old
    and new engines agree bit for bit, and `validate/mhw_parity.R`
-   still matches heatwaveR 0.5.5 exactly on 41 series. The new engine
+   still matches heatwaveR 0.5.5 exactly on 41 series. End to end, a
+   full North-west run of `data-raw/mhw_pixels.R` on spells (660 chunks,
+   1,136,261 ocean pixels, 20 workers, 16.9 min, at most 62 GB in use)
+   writes `pixel_daily.csv` and `pixel_maps.rds` byte-identical to the
+   old engine's of 2026-11-18. The new engine
    is 10-20% slower per chunk and uses up to about 1.5 times the memory
    (peak 1.9 to 2.8 GB on one chunk, about the same on the others).
    `data-raw/golden.R` now takes trend.sst's old engine from commit
