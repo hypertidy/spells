@@ -11,7 +11,8 @@
 ## Also stores what trend.sst's own R/mhw.R (the code spells is extracted
 ## from) makes of the cases, so trend.sst can move onto spells knowing
 ## nothing it publishes changes. TREND_SST names its clone (default
-## ~/Git/trend.sst); the file records the commit R/mhw.R was taken from.
+## ~/Git/trend.sst). R/mhw.R is taken from commit e676802, the last with
+## its own engine (it has called spells since), and the file records it.
 ##
 ## Needs heatwaveR 0.5.5 and heatwave3 1.5.0 (@8aff3e5) on the library
 ## path, and heatwaveR 1.0.0 (@e0ae30d, GitHub only) in a library of its
@@ -199,9 +200,9 @@ run_heatwave3 <- function(cs, cold = FALSE, detrend = FALSE) {
 }
 
 ## --- trend.sst's R/mhw.R ----------------------------------------------------
-run_trend_sst <- function(cs, root) {
+run_trend_sst <- function(cs, mhw_file) {
   env <- new.env()
-  sys.source(file.path(root, "R", "mhw.R"), envir = env)
+  sys.source(mhw_file, envir = env)
   lapply(cs, function(k) {
     inb <- k$dates >= k$reference[1] & k$dates <= k$reference[2]
     if (anyNA(k$x[inb, ])) return(NULL)     # mhw_clim() stops: nothing to store
@@ -213,8 +214,11 @@ run_trend_sst <- function(cs, root) {
   })
 }
 tsst <- Sys.getenv("TREND_SST", path.expand("~/Git/trend.sst"))
-tsst_commit <- system2("git", c("-C", tsst, "log", "-1", "--format=%h", "--", "R/mhw.R"), stdout = TRUE)
-stopifnot(length(system2("git", c("-C", tsst, "status", "--porcelain", "--", "R/mhw.R"), stdout = TRUE)) == 0)
+tsst_commit <- "e676802"
+mhw_file <- file.path(work, "mhw.R")
+writeLines(system2("git", c("-C", tsst, "show", paste0(tsst_commit, ":R/mhw.R")), stdout = TRUE),
+           mhw_file)
+stopifnot(!any(grepl("spells::", readLines(mhw_file), fixed = TRUE)))
 
 meta <- function(engine, version, source) {
   list(engine = engine, version = version, source = source,
@@ -232,7 +236,7 @@ stopifnot(identical(clim_at(h055), clim_at(h100)))
 h3 <- run_heatwave3(cases)
 c3 <- run_heatwave3(cases, cold = TRUE)
 d3 <- run_heatwave3(cases, detrend = TRUE)
-ts <- run_trend_sst(cases, tsst)
+ts <- run_trend_sst(cases, mhw_file)
 
 saveRDS(cases, file.path(out, "cases.rds"), compress = "xz")
 ## cases: heatwaves (90th percentile); cold: cold spells (10th, coldSpells);

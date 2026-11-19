@@ -1034,8 +1034,21 @@ area metrics as sums, and the ice mask.
    rule order made explicit 2026-11-19*: minimum first or join first, a
    def parameter, with join first tested against MHW-MAD's own
    categories (a CC-BY 4.0 subset, nine Tasman pixels, 2015-2016) and the
-   order of every rule in `spell_mask()`'s documentation. Still to do in
-   this phase: trend.sst moving onto spells. Moving
+   order of every rule in `spell_mask()`'s documentation. *trend.sst
+   moved onto spells 2026-11-19*: its `R/mhw.R` keeps `mhw_clim()`,
+   `mhw_detect()` and `mhw_doy()` as thin wrappers over
+   `hobday2018(parity = "heatwaveR-0.5.5", category =
+   categories(gap_days = "I"))`, and its method page names the
+   definition. On four real 50 x 50-pixel chunks of its MUR stores
+   (Tasman, North-west, WA; 2002-2026, 89 million pixel-days) the old
+   and new engines agree bit for bit, and `validate/mhw_parity.R`
+   still matches heatwaveR 0.5.5 exactly on 41 series. The new engine
+   is 10-20% slower per chunk and uses up to about 1.5 times the memory
+   (peak 1.9 to 2.8 GB on one chunk, about the same on the others).
+   `data-raw/golden.R` now takes trend.sst's old engine from commit
+   e676802. Any machine that runs trend.sst's heatwave scripts (Setonix)
+   needs spells installed (`remotes::install_github("hypertidy/spells")`).
+   That completes step 1. Moving
    trend.sst to clean rules is a separate, visible step, and its labels
    say which rules it uses.
 2. **Generality gate 1 (ice)**: re-express trend.ice's ice season through
