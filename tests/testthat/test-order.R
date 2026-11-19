@@ -29,7 +29,7 @@ mad <- fixture("mhw-mad.rds")
 mad_slot <- slot_366(mad$dates)
 run_mad <- function(product, min_duration, order) {
   thr <- mad$thresh[[product]]
-  def <- spell_def("mhw-mad", c("1991-01-01", "2020-12-31"), rule_mode(NULL)$rules,
+  def <- spell_def("mhw-mad", c("1991-01-01", "2020-12-31"),
                    category = categories(), min_duration = min_duration, order = order)
   b <- structure(list(def = def, seas = matrix(0, 366, ncol(thr)), thresh = thr),
                  class = "spell_baseline")
@@ -94,8 +94,8 @@ test_that("the order is part of the def", {
   ref <- c("1982-01-01", "2011-12-31")
   expect_identical(hobday2018(ref)$order, "minimum_first")
   expect_identical(schlegel2021(ref, parity = "heatwave3-1.5.0")$order, "minimum_first")
-  d <- spell_def("x", ref, rule_mode(NULL)$rules, order = "join_first")
+  d <- spell_def("x", ref, order = "join_first")
   expect_identical(d$order, "join_first")
   expect_match(capture.output(print(d))[4], "join_first")
-  expect_error(spell_def("x", ref, rule_mode(NULL)$rules, order = "neither"))
+  expect_error(spell_def("x", ref, order = "neither"))
 })

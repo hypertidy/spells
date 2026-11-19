@@ -102,3 +102,7 @@ heatwaves. Oceanography 31(2), 162-173. \doi{10.5670/oceanog.2018.205}
 Schlegel, R. W. et al. (2021). Marine cold-spells. Progress in
 Oceanography 198, 102684. \doi{10.1016/j.pocean.2021.102684}
 }
+\seealso{
+\code{\link[=massom2013]{massom2013()}} for the sea ice season, and \code{\link[=spell_def]{spell_def()}} for
+the general definition.
+}

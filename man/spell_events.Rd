@@ -19,6 +19,7 @@ A data frame, one row per spell, ordered by series and then
 time:
 \itemize{
 \item \code{series}, \code{spell}: the column of \code{x}, and the spell's number in it;
+\code{season}, the season's label, if the def has seasons;
 \item \code{start}, \code{peak}, \code{end}: dates; \code{index_start}, \code{index_peak},
 \code{index_end}: rows of \code{x};
 \item \code{duration}: steps in the spell, joined gaps included; \code{n_beyond}:
@@ -27,10 +28,11 @@ those beyond the threshold; \code{n_missing}: those missing in \code{x}
 ineligible (always 0 with the clean rules, which cut a spell
 there; with a parity mode they count as missing);
 \item \code{cut_start}, \code{cut_end}: the spell touches the first or last step,
-or a step that can't be tested, so it may have begun earlier or go
-on (at the series' end, a provisional tail); \code{cut_start_by},
-\code{cut_end_by}: why, \code{"series"} (its end), \code{"missing"},
-\code{"ineligible"} or \code{"no_baseline"}, or \code{NA} if not cut;
+a season boundary, or a step that can't be tested, so it may have
+begun earlier or go on (at the series' end, a provisional tail);
+\code{cut_start_by}, \code{cut_end_by}: why, \code{"series"} (its end),
+\code{"season"}, \code{"missing"}, \code{"ineligible"} or \code{"no_baseline"}, or
+\code{NA} if not cut;
 \item \code{intensity_max}, \code{intensity_mean}, \code{intensity_sd},
 \code{intensity_cumulative}: of the anomaly (the series minus the
 baseline); then the same with suffix \verb{_thresh} (the series minus
@@ -62,15 +64,19 @@ high spell's.
 
 Every step in a spell is measured, joined gaps included, after the
 def's missing-data rule (with the clean rules a short run of missing
-steps is interpolated; with the parity modes a missing step counts as
-the baseline). The peak is the first step of largest anomaly.
+steps is interpolated; with the heatwaveR and heatwave3 modes a
+missing step counts as the baseline; a step counted as below the
+threshold has no value, and is left out of the intensities). The peak
+is the first step of largest anomaly; with a fixed-level threshold,
+which has no baseline, the first step furthest beyond the level, and
+the intensities relative to a baseline and the rates are \code{NA}.
 
 The rate of onset is the peak anomaly less the anomaly midway between
 the first step and the step before it, over the steps from that
 midpoint to the peak; the rate of decline is the same at the end
-(Hobday et al. 2016). A spell cut by either end of the series, or by
-steps that can't be tested (\code{cut_start}, \code{cut_end}), has no rate on
-that side. With the parity modes, a missing step just outside the
+(Hobday et al. 2016). A spell cut by either end of the series, by a
+season boundary, or by steps that can't be tested (\code{cut_start},
+\code{cut_end}), has no rate on that side. With the parity modes, a missing step just outside the
 spell is a rule of the mode: heatwaveR counts it as the baseline;
 heatwave3 gives no rate.
 }

@@ -1,5 +1,34 @@
 # spells 0.0.0.9000
 
+* The sea ice season: `massom2013()` (Massom et al. 2013) gives the
+  Antarctic ice season per pixel and ice year from daily ice
+  concentration, as season summaries of one spell per ice year: advance
+  is its first start, retreat the day after its last end. With
+  `parity = "trend.ice-d5be6df"` it reproduces every pixel of every one
+  of trend.ice's 46 published ice season COGs, 1979-2025
+  (`data-raw/massom2013.R`), and a stored subset of 230 pixels in three
+  ice years is tested (NOAA-NSIDC sea ice concentration CDR v6,
+  doi:10.7265/b18j-z797). Its clean rules interpolate 5 or fewer missing
+  days and leave an advance or retreat cut by a longer gap unknown.
+
+* New parts of a definition, which the ice season needed:
+  - `threshold_value()`, a fixed level with no baseline, beside
+    `threshold_percentile()`;
+  - `compare = ">="`, at or beyond the threshold;
+  - `order = "first_run"`: only the run that opens a spell must reach
+    the minimum, and the runs after it join across gaps of `max_gap` or
+    fewer (`Inf` joins them all);
+  - `season = season_year()`: detection never crosses the season's
+    boundary, and a spell that touches one is cut by `"season"`;
+  - the missing-data rule `"below"` (trend.ice's parity mode): a missing
+    step counts as below the threshold.
+
+* `spell_summary()`: one row per series and season, with counts, the
+  first start and last end of the season's spells and why each is cut.
+
+* `spell_def()` is exported, as experimental: its arguments may still
+  change at generality gate 2 (chlorophyll on 5-day steps).
+
 * The rule order is explicit: a def's `order` is `"minimum_first"` (the
   minimum duration, then gaps joined between spells; every preset) or
   `"join_first"` (gaps joined between runs, then the minimum on the

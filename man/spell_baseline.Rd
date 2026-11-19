@@ -28,7 +28,10 @@ A \code{spell_baseline}: the def, and \code{seas} (the baseline) and
 \code{thresh} (the threshold), each a 366 x series matrix by slot. With
 a detrended baseline, also \code{trend}: the slope per series (per day),
 the date it's centred on (the reference period's midpoint), and
-whether detection adds it to \code{seas} and \code{thresh} at each step.
+whether detection adds it to \code{seas} and \code{thresh} at each step. With
+a fixed-level threshold (\code{\link[=threshold_value]{threshold_value()}}) nothing is fitted:
+\code{thresh} is the level in every slot, \code{seas} is \code{NA}, and \code{x} and
+\code{time} only give the series.
 }
 \description{
 Fits the def's baseline and threshold over its reference period, for

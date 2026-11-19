@@ -260,6 +260,10 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
   multiple of the standard deviation, or a probability (z value) under a
   distribution fitted per slot (SPI, SPEI, SCI). The last can
   extrapolate beyond the sample and handles zero inflation.
+  *Implemented 2026-11-19*: `threshold_percentile(p)` and
+  `threshold_value(level)`. A fixed level has no baseline: no reference
+  period, `NA` anomalies and baseline-relative intensities, and no
+  categories; the peak is the step furthest beyond the level.
   - A fraction of the season's amplitude, base + f × (peak − base), with
     the base taken separately before and after the peak (phenofit's TRS,
     from TIMESAT). Separate bases give different start and end levels.
@@ -270,6 +274,8 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
     differently.
 - **exceedance**: a logical per step, with a direction (high or low) and
   a comparison (`>` vs `>=`: trend.ice found old code mixing the two).
+  *Implemented 2026-11-19* as the def's `compare`; `massom2013()` uses
+  `>=` (exactly 15% occurs on 1,421 pixel-days in 2001 alone).
 - **excursion**: a maximal contiguous run of exceedances.
 - **spell**: an excursion that passes the persistence rules:
   minimum duration (an *opening*), maximum gap joined (a *closing*), the
@@ -309,6 +315,11 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
     gap only between two runs that each meet it. The def says which runs
     the minimum applies to. xclim's `find_events()` is the general form:
     separate start and stop conditions, each with its own window.
+    *Implemented 2026-11-19* as `order = "first_run"`: the minimum on the
+    run that opens a spell only, the runs after it joined across gaps of
+    `max_gap` or fewer (iglu's end rule is `max_gap + 1` steps back).
+    Massom's ice season is `first_run` with `max_gap = Inf` in each ice
+    year.
   - **A minimum on the peak** is another opening: detect at one level
     and keep the spells whose peak reaches another (hydroEvents'
     `eventMaxima()`). Unlike hysteresis, the start and end stay at the
@@ -417,7 +428,12 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
 - **summaries** per season year: spell count, days in spell, days at or
   above each category, first start, last end (ice advance and retreat
   are summaries, not new algorithms), the longest spell, maximum
-  intensity and the highest category. A summary can also pick one spell
+  intensity and the highest category. *Started 2026-11-19*:
+  `spell_summary()` gives per (series, season) the counts (observed,
+  missing, ineligible, beyond, in a spell, spells), the first start and
+  last end with why each is cut, and whether the first and last steps
+  are beyond; a season with nothing observed has no summary. The
+  category and intensity summaries are still to add. A summary can also pick one spell
   by a metric and report its other metrics: HWMId's yearly value is the
   largest heatwave, with its duration and start.
   - **Rates per observed time** (iglu's episodes per day of recording,
@@ -436,7 +452,12 @@ baseline -> threshold -> exceedance -> excursion -> spell -> metrics -> summarie
 
     Counts and durations change with the rule. Every summary follows
     the def's one rule: EflowStats mixes them, cutting events for its
-    counts and splitting them for its durations. xclim has three of
+    counts and splitting them for its durations. *Implemented
+    2026-11-19*: `season_year(start, label)` in the def, with the cut
+    rule (detection never crosses a boundary; each piece must reach the
+    minimum; a spell touching it is cut by `"season"`), as trend.ice's
+    ice year needs. The other four rules wait for a preset that needs
+    them. xclim has three of
     these as parameters (`resample_before_rl` to cut; `index = "first"`
     or `"last"` for by start or by end), and xmhw adds by peak.
   - **Seasons with no spells** count as zero or are left out of means
@@ -1056,7 +1077,34 @@ area metrics as sums, and the ice mask.
    trend.sst to clean rules is a separate, visible step, and its labels
    say which rules it uses.
 2. **Generality gate 1 (ice)**: re-express trend.ice's ice season through
-   spells. It must reproduce the published Int16 COGs exactly.
+   spells. It must reproduce the published Int16 COGs exactly. *Passed
+   2026-11-19*: `massom2013(parity = "trend.ice-d5be6df")` reproduces
+   every pixel of all seven layers of the 46 published ice years
+   (1979-2025 without 1987), read from Acacia
+   (`data-raw/massom2013.R`). On trend.ice's current reading (empty
+   dates dropped and interpolated) it equals trend.ice's own
+   `ice_season()` in all 44 years that reading computes. The ice season
+   needed five general parts and no ice-specific code: a fixed-level
+   threshold, `>=`, the opening-run persistence order (`first_run`,
+   `max_gap = Inf`), seasons in the def with the cut rule, and
+   `spell_summary()`; plus the missing-data rule `"below"` for the
+   parity mode. trend.ice's reading (`read_ice_obs()`, `fill_daily()`)
+   stays in trend.ice: it is reading the data. A subset of 230 pixels in
+   1982, 1984 and 2001 is stored for the tests. `spell_def()` is now
+   exported, as experimental.
+   - **Found by the gate, for trend.ice**: the published 1984, 1985 and
+     1986 files read empty days in the CDR as open water (12-24 August
+     1984, 5-9 August 1985, 4-10 December 1986), the error trend.ice
+     found and fixed for 1987 on 2026-11-12 but thought didn't touch
+     other years. Its current code doesn't compute 1984 or 1986 (gap
+     over 5 days) and changes 1985 (1,123 advance and 29,559 day-count
+     pixels). The handoff's other open check is settled: the full run
+     did include d5be6df (retreat only where there's an advance).
+   - Under spells' clean rules (5 days interpolated, longer gaps cut and
+     left unknown) only those years and 1982 differ from the published
+     files: 1982 has 635 pixels with a few missing days, which trend.ice
+     counts as open water and the clean rules interpolate (25 advance
+     and 72 day-count pixels change).
 3. **Generality gate 2 (chl)**: bloom phenology on 5-day composites, the
    non-daily step and heavy missingness.
    Then **3b. Kernel estimation**: chl on fine bins (L3bin or OC-CCI
@@ -1199,6 +1247,14 @@ really needed for the Southern Ocean.
   out of the baseline and count against coverage; with a parity mode an
   ineligible step is the engine on the series masked to `NA`; spell
   events give the reason a spell is cut on each side.
+- 2026-11-19: **Generality gate 1, the ice season**: Massom's season is
+  a new persistence order (the minimum on the opening run only, iglu's
+  start and end rules), not a summary-only rule; seasons live in the
+  def, with detection cut at the boundary; `massom2013()`'s clean rules
+  interpolate 5 or fewer missing days and leave an advance or retreat
+  cut by a longer gap unknown (`NA`), counting only days that can be
+  tested; and `spell_def()` is exported, marked experimental, now the
+  gate has passed.
 - 2026-11-18: **heatwave3 is a test oracle only.** spells doesn't depend
   on it, not even in Suggests. Its outputs are generated once by a
   script and stored with the tests, and the Hobday presets run on spells'

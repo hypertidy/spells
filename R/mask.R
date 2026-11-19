@@ -10,16 +10,20 @@
 #' 1. the eligibility mask: an ineligible step's value is set aside;
 #' 2. the def's missing-data rule: a short run of missing steps is
 #'    interpolated (clean rules), or a missing step counts as the
-#'    baseline (parity modes);
+#'    baseline (the heatwaveR and heatwave3 modes) or as below the
+#'    threshold (trend.ice);
 #' 3. the baseline and threshold at each step, by slot, plus the trend
 #'    for a detrended baseline;
 #' 4. exceedance: the step is above the threshold (below, for a low
-#'    spell);
+#'    spell), or at or beyond it with the def's `compare = ">="`;
 #' 5. persistence, in the def's order: the minimum duration first and
 #'    then gaps of `max_gap` or fewer joined between spells (Hobday et
-#'    al. 2016, and every preset), or gaps joined between runs first and
-#'    then the minimum on the joined span, gap steps counted (MHW-MAD).
-#'    No gap is joined across a step that can't be tested;
+#'    al. 2016, and the heatwave presets), gaps joined between runs first
+#'    and then the minimum on the joined span, gap steps counted
+#'    (MHW-MAD), or the minimum on the run that opens a spell only, with
+#'    the runs after it joined across gaps (Massom et al. 2013). No gap
+#'    is joined across a step that can't be tested, and with a season
+#'    nothing crosses its boundary: runs are cut there;
 #' 6. categories, per step.
 #'
 #' @param x A numeric vector, or a time x series matrix with the same
@@ -39,10 +43,11 @@
 #'   outside spells and for steps with no category, 1 to 4 for Hobday
 #'   2018's I to IV; only if the def has categories) and `anom` (the
 #'   series minus the baseline, after the def's missing-data rule: `NA`
-#'   where a step can't be tested), and `state` (integer, each step's
+#'   where a step can't be tested, and everywhere with a fixed-level
+#'   threshold, which has no baseline), and `state` (integer, each step's
 #'   state: 0 observed, 1 filled (interpolated, or counted as the
-#'   baseline), 2 missing, 3 ineligible, 4 no baseline; the names are its
-#'   `levels` attribute). A low spell (a cold spell) is below the
+#'   baseline or as below the threshold), 2 missing, 3 ineligible, 4 no
+#'   baseline; the names are its `levels` attribute). A low spell (a cold spell) is below the
 #'   threshold, and its categories count down from it.
 #' @export
 #' @examples
@@ -55,13 +60,12 @@ spell_mask <- function(x, time, baseline, eligible = NULL) {
   p <- prepare_steps(x, time, baseline, eligible)
   def <- baseline$def
   rules <- def$rules
-  exceed <- p$x > p$thresh
-  exceed[p$open] <- FALSE
+  exceed <- beyond_threshold(p, def)
   ev <- matrix(FALSE, nrow(p$x), ncol(p$x))
   for (j in seq_len(ncol(p$x))) {
     ev[, j] <- spell_runs(exceed[, j], def$min_duration, def$max_gap,
                           leading_gap = rules$leading_gap, trailing_gap = rules$trailing_gap,
-                          blocked = p$open[, j], order = def$order)
+                          blocked = p$open[, j], order = def$order, breaks = p$breaks)
   }
   out <- list(event = ev)
   if (!is.null(def$category)) out$category <- step_category(p$x, p$seas, p$thresh, ev, def$category)
@@ -74,6 +78,16 @@ spell_mask <- function(x, time, baseline, eligible = NULL) {
 ## in a slot without a baseline, then filled, else observed.
 step_states <- c("observed", "filled", "missing", "ineligible", "no_baseline")
 
+## The steps beyond the threshold, by the def's comparison (a low spell's
+## series and threshold are already negated); never a step that can't
+## be tested or has no value.
+beyond_threshold <- function(p, def) {
+  b <- switch(def$compare, ">" = p$x > p$thresh, ">=" = p$x >= p$thresh,
+              stop("unknown comparison \"", def$compare, "\""))
+  b[is.na(b) | p$open] <- FALSE
+  b
+}
+
 ## The series, baseline and threshold per step, after the def's
 ## missing-data rule:
 ##  baseline:    a missing step is set to the baseline, so it's never
@@ -81,6 +95,9 @@ step_states <- c("observed", "filled", "missing", "ineligible", "no_baseline")
 ##  interpolate: a run of max_interp or fewer missing steps with an
 ##               observed step on both sides is interpolated linearly
 ##               (spells' clean rule); the rest stay missing
+##  below:       a missing step counts as below the threshold, so it's
+##               never beyond it, and is no cut: it has no value, and
+##               the spell goes on across it (trend.ice)
 ## Also: which steps were missing, which were interpolated, and which
 ## are open (can't be tested: still missing, ineligible, or in a slot
 ## without a baseline). No gap is joined across an open step.
@@ -89,7 +106,8 @@ step_states <- c("observed", "filled", "missing", "ineligible", "no_baseline")
 ## then just missing, as the engine would see the masked series.
 ## A low spell's series, baseline and threshold are negated (sign -1),
 ## so everything after looks for steps above the threshold, as
-## heatwaveR and heatwave3 detect cold spells.
+## heatwaveR and heatwave3 detect cold spells. With a season, `breaks`
+## is TRUE on each season's first step (and the series' first).
 prepare_steps <- function(x, time, baseline, eligible = NULL) {
   if (!inherits(baseline, "spell_baseline")) stop("`baseline` must be a spell_baseline")
   x <- check_series(x, time)
@@ -121,20 +139,27 @@ prepare_steps <- function(x, time, baseline, eligible = NULL) {
       x <- interpolate_runs(x, rules$max_interp, blocked = ineligible)
       filled <- missing & !is.na(x)
     },
+    below = {
+      filled <- is.na(x)
+    },
     stop("unknown missing rule \"", rules$missing, "\""))
-  nobase <- is.na(seas) | is.na(thresh)
-  open <- is.na(x) | nobase
+  ## a fixed level has no baseline: only the threshold has to be there
+  fixed_level <- baseline$def$threshold$type == "value"
+  nobase <- is.na(thresh) | (!fixed_level & is.na(seas))
+  open <- (is.na(x) & !filled) | nobase
   state <- matrix(0L, nrow(x), ncol(x))
   state[filled] <- 1L
   state[nobase] <- 4L
-  state[is.na(x) & missing] <- 2L
+  state[is.na(x) & missing & !filled] <- 2L
   state[ineligible] <- 3L
   attr(state, "levels") <- step_states
   sign <- switch(baseline$def$direction, high = 1, low = -1,
                  stop("unknown direction \"", baseline$def$direction, "\""))
+  season <- if (is.null(baseline$def$season)) NULL else season_steps(time, baseline$def$season)
+  breaks <- if (is.null(season)) NULL else c(TRUE, diff(season$year) != 0L)
   list(x = sign * x, seas = sign * seas, thresh = sign * thresh, missing = missing,
        ineligible = ineligible, interpolated = filled & rules$missing == "interpolate",
-       open = open, state = state, sign = sign)
+       open = open, state = state, sign = sign, season = season, breaks = breaks)
 }
 
 ## Linear interpolation of each run of n or fewer missing steps that has
@@ -162,6 +187,25 @@ interpolate_runs <- function(x, n, blocked = NULL) {
   x
 }
 
+## The runs of a logical vector, split also where `breaks` is TRUE (the
+## first step of a season): each run's first and last index, value and
+## length, and whether it begins or ends a segment (the series, or a
+## season in it).
+step_runs <- function(v, breaks = NULL) {
+  n <- length(v)
+  chg <- c(TRUE, v[-1L] != v[-n])
+  if (!is.null(breaks)) chg <- chg | breaks
+  s <- which(chg)
+  e <- c(s[-1L] - 1L, n)
+  first <- s == 1L
+  last <- e == n
+  if (!is.null(breaks)) {
+    first <- first | breaks[s]
+    last[!last] <- breaks[e[!last] + 1L]
+  }
+  list(s = s, e = e, v = v[s], len = e - s + 1L, first = first, last = last)
+}
+
 ## The persistence rules, in the def's order:
 ##  minimum_first: runs of at least min_duration exceedances are spells,
 ##        then a gap of max_gap or fewer steps between two spells joins
@@ -171,48 +215,63 @@ interpolate_runs <- function(x, n, blocked = NULL) {
 ##        exceedances (of any length) is joined first, then a joined span
 ##        is a spell if it's at least min_duration steps, gap steps
 ##        counted (MHW-MAD, checked against its data; lfstat pools first)
+##  first_run: a spell opens with a run of at least min_duration
+##        exceedances, and the runs after it, of any length, join it
+##        across gaps of max_gap or fewer; it ends with the last of them.
+##        Runs before the opening one aren't in it (iglu's start and end
+##        rules; Massom et al. 2013 with max_gap = Inf in each ice year)
 ## Either way no gap is joined across a blocked step (one that can't be
-## tested). leading_gap / trailing_gap: whether a short gap between the
-## series start and the first spell (or run), or the last one and the
-## series end, is joined too (heatwaveR 0.5.5 joins the trailing one).
+## tested), and with breaks (season boundaries) runs are cut there, each
+## piece on its own, and no gap is joined across one. leading_gap /
+## trailing_gap: whether a short gap between a segment's start and its
+## first run, or its last run and its end, is joined too (heatwaveR
+## 0.5.5 joins the trailing one at the series' end).
 spell_runs <- function(exceed, min_duration, max_gap, leading_gap = FALSE, trailing_gap = FALSE,
-                       blocked = NULL, order = c("minimum_first", "join_first")) {
+                       blocked = NULL, order = c("minimum_first", "join_first", "first_run"),
+                       breaks = NULL) {
   order <- match.arg(order)
   n <- length(exceed)
   out <- logical(n)
   if (!any(exceed)) return(out)
-  ## the short gaps of on, a run mask, that may be joined
+  cb <- if (!is.null(blocked) && any(blocked)) c(0L, cumsum(blocked)) else NULL
+  fill <- function(mask, s, e) {
+    if (length(s)) mask[unlist(lapply(seq_along(s), function(i) s[i]:e[i]))] <- TRUE
+    mask
+  }
+  ## the short gaps of on_mask, a run mask, joined
   joinable <- function(on_mask) {
-    r <- rle(on_mask)
-    e <- cumsum(r$lengths); s <- e - r$lengths + 1L
-    on <- which(r$values)
-    gap <- !r$values & r$lengths <= max_gap
-    if (!leading_gap) gap <- gap & e > s[on[1]]
-    if (!trailing_gap) gap <- gap & s < e[on[length(on)]]
-    if (!is.null(blocked) && any(blocked)) {
-      cb <- c(0L, cumsum(blocked))
-      gap <- gap & cb[e + 1L] == cb[s]
-    }
+    r <- step_runs(on_mask, breaks)
+    gap <- !r$v & r$len <= max_gap & !(r$first & r$last)
+    if (!leading_gap) gap <- gap & !r$first
+    if (!trailing_gap) gap <- gap & !r$last
+    if (!is.null(cb)) gap <- gap & cb[r$e + 1L] == cb[r$s]
     k <- which(gap)
-    if (length(k)) on_mask[unlist(lapply(k, function(i) s[i]:e[i]))] <- TRUE
-    on_mask
+    fill(on_mask, r$s[k], r$e[k])
   }
   ## the runs of on_mask at least min_duration long
   long_runs <- function(on_mask) {
-    r <- rle(on_mask)
-    e <- cumsum(r$lengths); s <- e - r$lengths + 1L
-    keep <- which(r$values & r$lengths >= min_duration)
-    res <- logical(n)
-    if (length(keep)) res[unlist(lapply(keep, function(i) s[i]:e[i]))] <- TRUE
-    res
+    r <- step_runs(on_mask, breaks)
+    k <- which(r$v & r$len >= min_duration)
+    fill(logical(n), r$s[k], r$e[k])
   }
-  if (order == "minimum_first") {
-    out <- long_runs(exceed)
-    if (!any(out)) return(out)
-    joinable(out)
-  } else {
-    long_runs(joinable(exceed))
-  }
+  switch(order,
+    minimum_first = {
+      out <- long_runs(exceed)
+      if (any(out)) joinable(out) else out
+    },
+    join_first = long_runs(joinable(exceed)),
+    first_run = {
+      ## spans of runs joined across short gaps; in each, the spell
+      ## starts at the first run of at least min_duration, and goes to
+      ## the span's end
+      span <- step_runs(joinable(exceed), breaks)
+      r <- step_runs(exceed, breaks)
+      opening <- r$s[r$v & r$len >= min_duration]
+      if (!length(opening)) return(out)
+      k <- findInterval(opening, span$s)
+      keep <- !duplicated(k)
+      fill(out, opening[keep], span$e[k[keep]])
+    })
 }
 
 ## Category per step, on spell steps only (0 elsewhere). ">=": the

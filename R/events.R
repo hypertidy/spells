@@ -15,15 +15,19 @@
 #'
 #' Every step in a spell is measured, joined gaps included, after the
 #' def's missing-data rule (with the clean rules a short run of missing
-#' steps is interpolated; with the parity modes a missing step counts as
-#' the baseline). The peak is the first step of largest anomaly.
+#' steps is interpolated; with the heatwaveR and heatwave3 modes a
+#' missing step counts as the baseline; a step counted as below the
+#' threshold has no value, and is left out of the intensities). The peak
+#' is the first step of largest anomaly; with a fixed-level threshold,
+#' which has no baseline, the first step furthest beyond the level, and
+#' the intensities relative to a baseline and the rates are `NA`.
 #'
 #' The rate of onset is the peak anomaly less the anomaly midway between
 #' the first step and the step before it, over the steps from that
 #' midpoint to the peak; the rate of decline is the same at the end
-#' (Hobday et al. 2016). A spell cut by either end of the series, or by
-#' steps that can't be tested (`cut_start`, `cut_end`), has no rate on
-#' that side. With the parity modes, a missing step just outside the
+#' (Hobday et al. 2016). A spell cut by either end of the series, by a
+#' season boundary, or by steps that can't be tested (`cut_start`,
+#' `cut_end`), has no rate on that side. With the parity modes, a missing step just outside the
 #' spell is a rule of the mode: heatwaveR counts it as the baseline;
 #' heatwave3 gives no rate.
 #'
@@ -34,6 +38,7 @@
 #' @return A data frame, one row per spell, ordered by series and then
 #'   time:
 #'   * `series`, `spell`: the column of `x`, and the spell's number in it;
+#'     `season`, the season's label, if the def has seasons;
 #'   * `start`, `peak`, `end`: dates; `index_start`, `index_peak`,
 #'     `index_end`: rows of `x`;
 #'   * `duration`: steps in the spell, joined gaps included; `n_beyond`:
@@ -42,10 +47,11 @@
 #'     ineligible (always 0 with the clean rules, which cut a spell
 #'     there; with a parity mode they count as missing);
 #'   * `cut_start`, `cut_end`: the spell touches the first or last step,
-#'     or a step that can't be tested, so it may have begun earlier or go
-#'     on (at the series' end, a provisional tail); `cut_start_by`,
-#'     `cut_end_by`: why, `"series"` (its end), `"missing"`,
-#'     `"ineligible"` or `"no_baseline"`, or `NA` if not cut;
+#'     a season boundary, or a step that can't be tested, so it may have
+#'     begun earlier or go on (at the series' end, a provisional tail);
+#'     `cut_start_by`, `cut_end_by`: why, `"series"` (its end),
+#'     `"season"`, `"missing"`, `"ineligible"` or `"no_baseline"`, or
+#'     `NA` if not cut;
 #'   * `intensity_max`, `intensity_mean`, `intensity_sd`,
 #'     `intensity_cumulative`: of the anomaly (the series minus the
 #'     baseline); then the same with suffix `_thresh` (the series minus
@@ -91,8 +97,9 @@ spell_events <- function(x, time, baseline, mask) {
   ## missing or ineligible step that wasn't interpolated, or one that
   ## can't be tested
   no_rate <- p$open | ((miss | p$ineligible) & !p$interpolated)
-  beyond <- x > thresh
-  beyond[p$open] <- FALSE
+  beyond <- beyond_threshold(p, def)
+  fixed_level <- def$threshold$type == "value"
+  brk <- p$breaks
   ecat <- if (is.null(rule)) {
     matrix(0L, nrow(x), ncol(x))
   } else switch(rule$event,
@@ -102,27 +109,36 @@ spell_events <- function(x, time, baseline, mask) {
   neighbour <- rules$rate_neighbour
   if (!neighbour %in% c("filled", "observed")) stop("unknown rate_neighbour rule \"", neighbour, "\"")
 
-  sp <- spell_bounds(ev)
+  sp <- spell_bounds(ev, brk)
   n <- nrow(x)
+  ## max, mean, sd and sum over the steps with a value (a step counted
+  ## as below the threshold has none)
+  stats4 <- function(v) {
+    v <- v[!is.na(v)]
+    if (!length(v)) return(rep(NA_real_, 4L))
+    c(max(v), mean(v), stats::sd(v), sum(v))
+  }
+  ## a side with a step outside the spell in the same segment
+  inside_before <- function(a) a > 1L && (is.null(brk) || !brk[a])
+  inside_after <- function(b) b < n && (is.null(brk) || !brk[b + 1L])
   one <- function(j, a, b) {
     t <- a:b
     an <- x[t, j] - seas[t, j]
     at <- x[t, j] - thresh[t, j]
     ab <- x[t, j]
-    pk <- which.max(an)
+    pk <- which.max(if (fixed_level) at else an)
     imax <- an[pk]
     ## heatwaveR's order of operations: 0.5 * (A + B - C)
-    onset <- if (a > 1L && (neighbour == "filled" || !no_rate[a - 1L, j])) {
+    onset <- if (inside_before(a) && (neighbour == "filled" || !no_rate[a - 1L, j])) {
       (imax - 0.5 * (an[1L] + x[a - 1L, j] - seas[a - 1L, j])) / (pk - 1 + 0.5)
     } else NA_real_
-    decline <- if (b < n && (neighbour == "filled" || !no_rate[b + 1L, j])) {
+    decline <- if (inside_after(b) && (neighbour == "filled" || !no_rate[b + 1L, j])) {
       (imax - 0.5 * (an[length(t)] + x[b + 1L, j] - seas[b + 1L, j])) / (length(t) - pk + 0.5)
     } else NA_real_
     cnt <- tabulate(ecat[t, j], nbins = 4L)
+    sa <- stats4(an)
     c(a + pk - 1L, sum(beyond[t, j]), sum(miss[t, j]), sum(p$ineligible[t, j]),
-      imax, mean(an), stats::sd(an), sum(an),
-      max(at), mean(at), stats::sd(at), sum(at),
-      max(ab), mean(ab), stats::sd(ab), sum(ab),
+      imax, sa[2:4], stats4(at), stats4(ab),
       onset, decline, cnt)
   }
   vals <- matrix(NA_real_, nrow(sp), 22L)
@@ -159,27 +175,21 @@ spell_events <- function(x, time, baseline, mask) {
   if (!is.null(rules$round)) vals[, metric] <- round(vals[, metric], rules$round)
   ip <- as.integer(vals[, "index_peak"])
   out <- data.frame(series = sp$series, spell = sp$spell,
+                    season = if (is.null(p$season)) rep(NA, nrow(sp)) else p$season$label[sp$index_start],
                     start = time[sp$index_start], peak = time[ip], end = time[sp$index_end],
                     index_start = sp$index_start, index_peak = ip, index_end = sp$index_end,
                     duration = duration,
                     n_beyond = as.integer(vals[, "n_beyond"]),
                     n_missing = as.integer(vals[, "n_missing"]),
                     n_ineligible = as.integer(vals[, "n_ineligible"]))
-  ## cut by the series' end, or by a step outside the spell that can't
-  ## be tested, and why
-  cut_by <- function(at_edge, nb) {
-    by <- rep(NA_character_, length(nb))
-    inside <- !at_edge
-    o <- p$open[cbind(nb[inside], sp$series[inside])]
-    by[inside][o] <- step_states[p$state[cbind(nb[inside], sp$series[inside])][o] + 1L]
-    by[at_edge] <- "series"
-    by
-  }
-  out$cut_start_by <- cut_by(sp$index_start == 1L, sp$index_start - 1L)
-  out$cut_end_by <- cut_by(sp$index_end == n, sp$index_end + 1L)
+  ## cut by the series' end, a season boundary, or a step outside the
+  ## spell that can't be tested, and why
+  out$cut_start_by <- cut_reason(sp$index_start, sp$series, "start", p)
+  out$cut_end_by <- cut_reason(sp$index_end, sp$series, "end", p)
   out$cut_start <- !is.na(out$cut_start_by)
   out$cut_end <- !is.na(out$cut_end_by)
-  out <- out[c(names(out)[1:12], "cut_start", "cut_end", "cut_start_by", "cut_end_by")]
+  out <- out[c(names(out)[1:13], "cut_start", "cut_end", "cut_start_by", "cut_end_by")]
+  if (is.null(p$season)) out$season <- NULL
   out <- cbind(out, as.data.frame(vals[, metric, drop = FALSE]))
   if (!is.null(rule)) {
     out$category <- as.integer(category)
@@ -188,16 +198,33 @@ spell_events <- function(x, time, baseline, mask) {
   out
 }
 
+## Why a spell is cut at one side (its first step, `side = "start"`, or
+## its last, "end"): "series" at the series' end, "season" at a season
+## boundary, the state of an untestable step beside it, or NA.
+cut_reason <- function(at, series, side, p) {
+  n <- nrow(p$x)
+  edge <- if (side == "start") at == 1L else at == n
+  nb <- if (side == "start") at - 1L else at + 1L
+  by <- rep(NA_character_, length(at))
+  inside <- !edge
+  o <- p$open[cbind(nb[inside], series[inside])]
+  by[inside][o] <- step_states[p$state[cbind(nb[inside], series[inside])][o] + 1L]
+  if (!is.null(p$breaks)) {
+    season <- inside & p$breaks[if (side == "start") at else pmin(nb, n)]
+    by[season] <- "season"
+  }
+  by[edge] <- "series"
+  by
+}
+
 ## The spells in an event mask: series, number in the series, first and
-## last row.
-spell_bounds <- function(ev) {
+## last row. With breaks (season boundaries), a spell ends at one.
+spell_bounds <- function(ev, breaks = NULL) {
   b <- lapply(seq_len(ncol(ev)), function(j) {
-    r <- rle(ev[, j])
-    e <- cumsum(r$lengths)
-    k <- which(r$values)
-    if (!length(k)) return(NULL)
-    data.frame(series = j, spell = seq_along(k), index_start = e[k] - r$lengths[k] + 1L,
-               index_end = e[k])
+    if (!any(ev[, j])) return(NULL)
+    r <- step_runs(ev[, j], breaks)
+    k <- which(r$v)
+    data.frame(series = j, spell = seq_along(k), index_start = r$s[k], index_end = r$e[k])
   })
   b <- do.call(rbind, b)
   if (is.null(b)) b <- data.frame(series = integer(), spell = integer(),

@@ -24,7 +24,10 @@
 #'   `thresh` (the threshold), each a 366 x series matrix by slot. With
 #'   a detrended baseline, also `trend`: the slope per series (per day),
 #'   the date it's centred on (the reference period's midpoint), and
-#'   whether detection adds it to `seas` and `thresh` at each step.
+#'   whether detection adds it to `seas` and `thresh` at each step. With
+#'   a fixed-level threshold ([threshold_value()]) nothing is fitted:
+#'   `thresh` is the level in every slot, `seas` is `NA`, and `x` and
+#'   `time` only give the series.
 #' @export
 #' @examples
 #' x <- 20 + 2 * sin(2 * pi * seq_len(3653) / 365.25) + rnorm(3653, sd = 0.5)
@@ -36,6 +39,12 @@ spell_baseline <- function(x, time, def, eligible = NULL) {
   if (!inherits(def, "spell_def")) stop("`def` must be a spell_def")
   x <- check_series(x, time)
   el <- check_eligible(eligible, x)
+  if (def$threshold$type == "value") {
+    n <- ncol(x)
+    return(structure(list(def = def, seas = matrix(NA_real_, 366L, n),
+                          thresh = matrix(def$threshold$level, 366L, n), series = colnames(x),
+                          trend = NULL, ineligible = 0L), class = "spell_baseline"))
+  }
   x[!el] <- NA_real_
   ref <- def$reference
   if (min(time) > ref[1] || max(time) < ref[2]) {
@@ -259,7 +268,8 @@ running_mean_366 <- function(m, w, skip_na = FALSE) {
 print.spell_baseline <- function(x, ...) {
   cat("<spell_baseline>", ncol(x$seas), "series, 366 slots;", x$def$name,
       if (!is.null(x$def$parity)) paste0("(parity ", x$def$parity, ")"),
-      "reference", format(x$def$reference[1]), "to", format(x$def$reference[2]), "\n")
+      if (x$def$threshold$type == "value") paste("fixed level", x$def$threshold$level, "(no baseline)")
+      else paste("reference", format(x$def$reference[1]), "to", format(x$def$reference[2])), "\n")
   if (!is.null(x$trend)) {
     cat("  detrended: slope", paste(signif(x$trend$slope * 3652.5, 3), collapse = ", "),
         "per decade, centred on", format(x$trend$centre),

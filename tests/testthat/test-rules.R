@@ -53,7 +53,8 @@ test_that("definitions: clean by default, parity by name", {
   expect_null(hobday2016(ref)$category)
   expect_identical(hobday2018(ref, parity = "heatwave3-1.5.0")$category$event, "share")
   pm <- parity_modes()
-  expect_identical(pm$parity[pm$implemented], c("heatwaveR-0.5.5", "heatwaveR-1.0.0", "heatwave3-1.5.0"))
+  expect_identical(pm$parity[pm$implemented],
+                   c("heatwaveR-0.5.5", "heatwaveR-1.0.0", "heatwave3-1.5.0", "trend.ice-d5be6df"))
 })
 
 test_that("inputs are checked", {

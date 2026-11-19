@@ -29,10 +29,11 @@ every step in a spell, joined gaps included), \code{category} (integer: 0
 outside spells and for steps with no category, 1 to 4 for Hobday
 2018's I to IV; only if the def has categories) and \code{anom} (the
 series minus the baseline, after the def's missing-data rule: \code{NA}
-where a step can't be tested), and \code{state} (integer, each step's
+where a step can't be tested, and everywhere with a fixed-level
+threshold, which has no baseline), and \code{state} (integer, each step's
 state: 0 observed, 1 filled (interpolated, or counted as the
-baseline), 2 missing, 3 ineligible, 4 no baseline; the names are its
-\code{levels} attribute). A low spell (a cold spell) is below the
+baseline or as below the threshold), 2 missing, 3 ineligible, 4 no
+baseline; the names are its \code{levels} attribute). A low spell (a cold spell) is below the
 threshold, and its categories count down from it.
 }
 \description{
@@ -46,16 +47,20 @@ The rules apply in this order:
 \item the eligibility mask: an ineligible step's value is set aside;
 \item the def's missing-data rule: a short run of missing steps is
 interpolated (clean rules), or a missing step counts as the
-baseline (parity modes);
+baseline (the heatwaveR and heatwave3 modes) or as below the
+threshold (trend.ice);
 \item the baseline and threshold at each step, by slot, plus the trend
 for a detrended baseline;
 \item exceedance: the step is above the threshold (below, for a low
-spell);
+spell), or at or beyond it with the def's \code{compare = ">="};
 \item persistence, in the def's order: the minimum duration first and
 then gaps of \code{max_gap} or fewer joined between spells (Hobday et
-al. 2016, and every preset), or gaps joined between runs first and
-then the minimum on the joined span, gap steps counted (MHW-MAD).
-No gap is joined across a step that can't be tested;
+al. 2016, and the heatwave presets), gaps joined between runs first
+and then the minimum on the joined span, gap steps counted
+(MHW-MAD), or the minimum on the run that opens a spell only, with
+the runs after it joined across gaps (Massom et al. 2013). No gap
+is joined across a step that can't be tested, and with a season
+nothing crosses its boundary: runs are cut there;
 \item categories, per step.
 }
 }
